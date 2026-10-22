@@ -1,0 +1,302 @@
+using System;
+using CookingHub.Core;
+using UnityEngine;
+
+namespace CookingHub.Adapters;
+
+/// <summary>
+/// The window's game side, run once a frame: its open state, the view and catalog it sends to page.js, the HUD
+/// button's badge, the odds drawn on the game's own cooking screen, and the presses the page asks for. Page messages
+/// arrive on the web view's thread, so they are queued and handled here, in this frame.
+/// </summary>
+internal sealed class CookSession
+{
+    private const float OpenRefreshSeconds = 1f;
+    private const float StoveRefreshSeconds = 0.5f;
+    private const float ClosedRefreshSeconds = 5f;
+
+    private readonly ICookGame _game;
+    private readonly WebPage _page;
+    private readonly WebKeyboard _keyboard = new();
+    private readonly Action<bool> _saveSpoilingFirst;
+    private readonly Action<bool> _saveShowOdds;
+    private readonly Action<string> _log;
+
+    private KeyCode _panelKey;
+    private bool _isSpoilingFirst = true;
+    private bool _isShowingOdds = true;
+
+    private bool _isOpen;
+    private string _shownView = "";
+    private string _shownOverlay = "";
+    private Cookbook? _sentCatalog;
+    private int? _sentBadge;
+    private bool? _sentLive;
+    private float _nextRefreshAt;
+
+    public CookSession(ICookGame game, WebPage page, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, Action<string> log)
+    {
+        _game = game;
+        _page = page;
+        _saveSpoilingFirst = saveSpoilingFirst;
+        _saveShowOdds = saveShowOdds;
+        _log = log;
+    }
+
+    private static bool IsChinese => GameLanguage.IsChinese();
+
+    /// <summary>Called on the main thread at start and after each settings change; the page hears them at the next refresh.</summary>
+    public void UseSettings(KeyCode panelKey, bool isSpoilingFirst, bool isShowingOdds)
+    {
+        _panelKey = panelKey;
+        _isSpoilingFirst = isSpoilingFirst;
+        _isShowingOdds = isShowingOdds;
+        ForgetSent();
+    }
+
+    public void Update()
+    {
+        var now = Time.unscaledTime;
+
+        _page.KeepInstalled(now);
+
+        while (PageMessages.TryTake(out var command)) HandleSafely(command);
+
+        if (!_keyboard.IsClaimed && _panelKey != KeyCode.None && Input.GetKeyDown(_panelKey))
+        {
+            Toggle();
+
+            return;
+        }
+
+        if (_isOpen && !_keyboard.IsClaimed && Input.GetKeyDown(KeyCode.Escape))
+        {
+            Close();
+
+            return;
+        }
+
+        if (now >= _nextRefreshAt) Refresh(now);
+    }
+
+    /// <summary>One command that throws must not cost the rest of the frame its commands or the key checks.</summary>
+    private void HandleSafely(PageCommand command)
+    {
+        try
+        {
+            Handle(command);
+        }
+        catch (Exception ex)
+        {
+            _log($"page command {command} failed: {ex}");
+            _page.Status(Texts.Failed.Pick(IsChinese));
+        }
+    }
+
+    private void Handle(PageCommand command)
+    {
+        switch (command)
+        {
+            case PageCommand.Toggle:
+                Toggle();
+                break;
+            case PageCommand.Close:
+                Close();
+                break;
+            case PageCommand.Ready:
+                _log("page script ready");
+                _page.ForgetWords();
+                _sentCatalog = null;
+                ForgetSent();
+                break;
+            case PageCommand.NoScript:
+                _page.Install();
+                break;
+            case PageCommand.Note note:
+                _log("page: " + note.Text);
+                break;
+            case PageCommand.Focus focus:
+                if (focus.IsTyping) _keyboard.Claim();
+                else _keyboard.Release();
+                break;
+            case PageCommand.Fill fill:
+                Press($"fill {fill.RecipeId}", () => CookRun.Fill(_game, fill.RecipeId, _isSpoilingFirst, IsChinese));
+                break;
+            case PageCommand.Season season:
+                Press($"season {season.ItemId}", () => CookRun.Season(_game, season.ItemId, IsChinese));
+                break;
+            case PageCommand.Swap swap:
+                Press($"swap {swap.ItemId}", () => CookRun.Swap(_game, swap.ItemId, IsChinese));
+                break;
+            case PageCommand.SpoilingFirst spoilingFirst:
+                _isSpoilingFirst = spoilingFirst.IsOn;
+                _saveSpoilingFirst(spoilingFirst.IsOn);
+                Say((spoilingFirst.IsOn ? Texts.SpoilingFirstOn : Texts.SpoilingFirstOff).Pick(IsChinese));
+                break;
+            case PageCommand.ShowOdds showOdds:
+                _isShowingOdds = showOdds.IsOn;
+                _saveShowOdds(showOdds.IsOn);
+                Say((showOdds.IsOn ? Texts.OddsOn : Texts.OddsOff).Pick(IsChinese));
+                break;
+            default:
+                throw new InvalidOperationException("unhandled page command " + command);
+        }
+    }
+
+    private void ForgetSent()
+    {
+        _sentLive = null;
+        _sentBadge = null;
+        _shownView = "";
+        _shownOverlay = "";
+        _nextRefreshAt = 0f;
+    }
+
+    private void Say(string message)
+    {
+        _log(message);
+        _page.Status(message);
+        Refresh(Time.unscaledTime);
+    }
+
+    /// <summary>
+    /// Reads the kitchen once: the HUD button shows while a game is loaded, its badge counts food spoiling soon, the
+    /// game's cooking screen gets its odds while one is open, and an open window is redrawn when its view changed. A
+    /// read that throws is logged by the game adapter and read as not ready.
+    /// </summary>
+    private void Refresh(float now)
+    {
+        var read = _game.Read();
+        var kitchen = (read as CookRead.Ready)?.Kitchen;
+        var isStoveOpen = kitchen?.Stove != null;
+
+        _nextRefreshAt = now + (isStoveOpen ? StoveRefreshSeconds : _isOpen ? OpenRefreshSeconds : ClosedRefreshSeconds);
+        SendLive(read is not CookRead.NoGame);
+        SendBadge(kitchen == null ? 0 : Pantry.SpoilingSoon(kitchen, Finder.SpoilingHours));
+        SendOverlay(kitchen);
+
+        if (_isOpen) Show(read, isOpening: false);
+    }
+
+    private void SendLive(bool isLive)
+    {
+        if (isLive == _sentLive) return;
+        if (_page.Live(isLive, KeyName())) _sentLive = isLive;
+
+        _log($"HUD button {(isLive ? "shown" : "hidden")}");
+    }
+
+    private void SendBadge(int count)
+    {
+        if (count == _sentBadge) return;
+        if (_page.Badge(count)) _sentBadge = count;
+    }
+
+    /// <summary>The odds on the game's cooking screen, sent only when they changed. The catalog goes first, since nudges name items by id.</summary>
+    private void SendOverlay(Kitchen? kitchen)
+    {
+        var overlay = kitchen?.Stove is { } stove ? CookView.Overlay(kitchen, stove, _isShowingOdds) : CookView.NoOverlay();
+
+        if (overlay == _shownOverlay) return;
+        if (kitchen != null) SendCatalog(kitchen.Book);
+        if (_page.Cooking(overlay)) _shownOverlay = overlay;
+    }
+
+    private void Toggle()
+    {
+        if (_isOpen) Close();
+        else Open();
+    }
+
+    /// <summary>With no game loaded there is nothing to show and the window stays shut; anything else opens it.</summary>
+    private void Open()
+    {
+        var read = _game.Read();
+
+        if (read is CookRead.NoGame)
+        {
+            _page.Status(Texts.NoGame.Pick(IsChinese));
+
+            return;
+        }
+
+        _isOpen = true;
+        InputGate.PanelOpened();
+        Show(read, isOpening: true);
+        _log("window opened");
+    }
+
+    private void Close()
+    {
+        if (!_isOpen) return;
+
+        _isOpen = false;
+        _keyboard.Release();
+        InputGate.PanelClosed();
+        _page.Close();
+    }
+
+    /// <summary>The catalog goes first, once per game and language, since the view names items only by id.</summary>
+    private void Show(CookRead read, bool isOpening)
+    {
+        var settings = new ViewSettings(KeyName(), _isSpoilingFirst, _isShowingOdds);
+        string view;
+
+        switch (read)
+        {
+            case CookRead.Ready ready:
+                SendCatalog(ready.Kitchen.Book);
+                view = CookView.Ready(ready.Kitchen, settings);
+                break;
+            case CookRead.NotReady notReady:
+                view = CookView.NotReady(Texts.NotReady.Say(IsChinese, notReady.Reason), settings);
+                break;
+            default:
+                Close();
+                return;
+        }
+
+        if (isOpening)
+        {
+            _shownView = view;
+            _page.Open(view);
+
+            return;
+        }
+
+        if (view == _shownView) return;
+
+        _shownView = view;
+        _page.Show(view);
+    }
+
+    private void SendCatalog(Cookbook book)
+    {
+        if (ReferenceEquals(book, _sentCatalog)) return;
+        if (_page.Catalog(CatalogView.Write(book))) _sentCatalog = book;
+    }
+
+    /// <summary>Runs one press and shows what it did, then reads again so the pot and the odds show the change at once.</summary>
+    private void Press(string name, Func<Pressed> press)
+    {
+        string message;
+
+        try
+        {
+            var pressed = press();
+
+            message = pressed.Message;
+            _log($"{name}: {(pressed.IsDone ? "done" : "refused")} -> {message}");
+        }
+        catch (Exception ex)
+        {
+            message = Texts.Failed.Pick(IsChinese);
+            _log($"{name} failed: {ex}");
+        }
+
+        _page.Status(message);
+        Refresh(Time.unscaledTime);
+    }
+
+    private string KeyName() => _panelKey == KeyCode.None ? "" : _panelKey.ToString();
+}
