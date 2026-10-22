@@ -1,11 +1,16 @@
 Name: Cooking Hub
-Summary: See the chance of each quality on the cooking screen, find every dish your food can make, and fill a pot from your bag and storages in one press. Shows why each dish lands where it does, suggests a seasoning or a fresh swap with how much it raises Perfect, marks dishes that use up food spoiling soon, and lists all your food with time left.
+Summary: A better stove screen: odds for every dish, search and filters, Load from storage, a cooking queue, Repeat last and fuel top up. Plus a window (K) that finds every dish your food can make and lists all your food. Shows why each dish lands where it does and suggests a seasoning or fresh swap with how much it raises Perfect. Works in English and Chinese.
 
 Description (BBCode):
-Know what you can cook and how good it will turn out before you light the stove. Cooking Hub shows the chance of each quality right on the game's cooking screen, with the reasons and one-press fixes, lists every dish your food can make, and fills a pot with food from your bag and home storages. Press [font=Courier New]K[/font], or the pot button in the tool column on the left of the screen, to open the window. The button shows how much of your food spoils within a day.
+Know what you can cook and how good it will turn out before you light the stove. Cooking Hub shows the chance of each quality right on the game's cooking screen, with the reasons and one-press fixes, lists every dish your food can make, and fills a pot with food from your bag and home storages. Open any stove, juicer, microwave, oven or coffee machine and its cooking screen gains tabs, a searchable recipe book with odds, a Load button that pulls food from storage, a queue, Repeat last and a fuel top up. Press [font=Courier New]K[/font], or the pot button in the tool column on the left of the screen, to open the window. The button shows how much of your food spoils within a day.
 
 [size=5]Main features[/size]
 [list]
+[*][b]A better cooking screen[/b]: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Pantry puts one of any food in the pot with a click. Queued fills the dishes you queued in the window, one at a time.[/*]
+[*][b]Load from storage[/b]: a recipe the game calls short because it only counts your bag gets a Load button when your storages cover it.[/*]
+[*][b]Repeat last[/b]: refills an empty stove with the dish it last started and starts it again.[/*]
+[*][b]Top up from storage[/b]: fills the free fuel slots with the fuel the stove already burns, from your bag and storages. Put the first fuel in by hand so the mod knows which kind.[/*]
+[*][b]Queue[/b]: press Queue on a dish in the window to line it up for later. The queue is kept between game starts and shared by every save.[/*]
 [*][b]Odds on the cooking screen[/b]: under each dish the cooking screen forecasts, the chance of a Failed, Average, Good and Perfect dish, and why: your cooking level's roll, fresh or spoiled food, seasonings, an exact recipe, the stove. It also shows the worst result a roll can give.[/*]
 [*][b]What would help[/b]: buttons under the forecast to add a seasoning you have, or to swap a spoiled ingredient in the pot for a fresh one, each with how much it adds to the Perfect chance.[/*]
 [*][b]What can I cook[/b]: every recipe you can see at your cooking level, checked against all the fresh food in your bag and home storages. Filter by ready, missing one, missing more or locked, and search by name. Dishes that use up food spoiling soon are marked and listed first.[/*]
@@ -19,7 +24,7 @@ Cooking Hub covers what ProjectCook's dish preview does. Use one or the other, n
 Works in English and Chinese.
 
 [size=5]Known issues[/size]
-None known.
+The queue is shared by every save, so a dish queued in one save still shows in another.
 
 [size=5]Requirements[/size]
 [list]
@@ -54,10 +59,15 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CookingHu
 [line]
 [size=5]简体中文[/size]
 
-开火之前就知道能做什么菜、能做出什么品质。Cooking Hub 直接在游戏的烹饪界面显示各品质的概率、原因和一键改进办法，列出你的食材能做的每道菜，并能从背包和家中储物里取食材放入锅中。按 [font=Courier New]K[/font]，或点击屏幕左侧工具栏中的锅子按钮即可打开窗口。按钮上的数字是一天内会变质的食材数量。
+开火之前就知道能做什么菜、能做出什么品质。Cooking Hub 直接在游戏的烹饪界面显示各品质的概率、原因和一键改进办法，列出你的食材能做的每道菜，并能从背包和家中储物里取食材放入锅中。打开任何灶具、榨汁机、微波炉、烤箱或咖啡机，烹饪界面会多出标签页、可搜索并显示概率的菜谱、从储物取食材的「放入」按钮、排队、重做上一道和补充燃料。按 [font=Courier New]K[/font]，或点击屏幕左侧工具栏中的锅子按钮即可打开窗口。按钮上的数字是一天内会变质的食材数量。
 
 [size=5]主要功能[/size]
 [list]
+[*][b]更好的烹饪界面[/b]：游戏自己的灶具界面多出标签页。「菜谱」加入搜索框和筛选（全部、可以放入、新菜、未解锁），并显示每道菜的食材在哪里或缺少什么、品质概率条和完美概率。「现在能做」列出这个灶具用你所有食材能做的菜，最快变质的排在前面。「食材库存」点击任意食材即可放一份到锅里。「队列」逐道放入你在窗口中排队的菜。[/*]
+[*][b]从储物放入[/b]：游戏只计算背包，因此会把储物里有食材的菜显示为不足；只要储物够用，这些菜会出现「放入」按钮。[/*]
+[*][b]重做上一道[/b]：锅空且没在烹饪时，把这个灶具上次做的菜重新放入并开始烹饪。[/*]
+[*][b]从储物补充燃料[/b]：用这个灶具正在烧的燃料，从背包和储物中填满空的燃料格。第一份燃料请手动放入，模组才知道用哪种。[/*]
+[*][b]排队[/b]：在窗口中点击菜品的「排队」，留到以后再做。队列在重启游戏后保留，所有存档共用。[/*]
 [*][b]烹饪界面显示概率[/b]：在烹饪界面预测的每道菜下方，显示做出失败、普通、优良和完美的概率，以及原因：烹饪等级的掷点、食材新鲜或变质、调味料、精确配方、灶具。还会显示掷点最差时的结果。[/*]
 [*][b]怎样做会更好[/b]：预测下方的按钮可以加入你拥有的调味料，或把锅里变质的食材换成新鲜的，并标出各自能让完美概率提高多少。[/*]
 [*][b]能做什么菜[/b]：按你的烹饪等级列出所有可见菜谱，并与背包和家中储物里的全部新鲜食材对照。可按可以做、差一样、差几样或未解锁筛选，也可按名称搜索。能用掉快变质食材的菜会被标出并排在前面。[/*]
@@ -69,7 +79,7 @@ Cooking Hub 不会向存档添加任何内容，也不会修改游戏文件，�
 Cooking Hub 包含 ProjectCook 菜品预览的功能，两者请只装一个。安装前如已装有 ProjectCook，请从 [font=Courier New]BepInEx\plugins[/font] 文件夹中删除它的 DLL。
 
 [size=5]已知问题[/size]
-暂无。
+队列由所有存档共用，在一个存档中排队的菜在另一个存档中也会显示。
 
 [size=5]前置要求[/size]
 [list]
