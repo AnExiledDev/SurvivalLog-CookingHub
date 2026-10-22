@@ -13,7 +13,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.3.0";
+    private const string Version = "0.3.1";
 
     public override void Load()
     {
@@ -38,10 +38,12 @@ public sealed class Plugin : BasePlugin
         var harmony = new Harmony(Guid);
         var queueFile = Path.Combine(Paths.ConfigPath, "CookingHub.queue.txt");
         var game = new GameCooking(log.Write);
+        var toasts = new DishToasts(log.Write);
         var session = new CookSession(
             game,
             game,
             new WebPage(log.Write),
+            note => toasts.Show(note, GameLanguage.IsChinese()),
             isOn => isSpoilingFirst.Value = isOn,
             isOn => isShowingOdds.Value = isOn,
             CookQueue.Read(File.Exists(queueFile) ? File.ReadAllText(queueFile) : null),

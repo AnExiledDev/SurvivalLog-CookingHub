@@ -102,4 +102,15 @@ public class DishStoreTests
 
         Assert.Equal("Put Pork Rice away in Fridge.", DishStore.Describe(stored, isChinese: false));
     }
+
+    [Fact]
+    public void A_dish_put_away_is_good_news_and_one_left_in_the_stove_is_a_warning()
+    {
+        var into = DishStore.Note(new Stored.Into(PorkRice, new DishStorage(Fridge, "Fridge", new PutRank(0, 1), false)), isChinese: false);
+        var stays = DishStore.Note(new Stored.Stays(PorkRice), isChinese: false);
+
+        Assert.Equal(new DishNote("Put Pork Rice away in Fridge.", false), into);
+        Assert.True(stays.IsWarning);
+        Assert.StartsWith("Pork Rice stays in the stove", stays.Text);
+    }
 }

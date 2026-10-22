@@ -54,6 +54,7 @@ public static class Texts
     public static readonly Phrase QueueFull = new("The queue is full.", "队列已满。");
     public static readonly Phrase Unqueued = new("Removed {0} from the queue.", "已将{0}移出队列。");
     public static readonly Phrase NoLast = new("Nothing has been cooked on this stove since the game started.", "本次启动游戏后，这个灶具还没有做过菜。");
+    public static readonly Phrase ToastSource = new("Cooking Hub", "烹饪中心");
     public static readonly Phrase DishStored = new("Put {0} away in {1}.", "已把{0}放进{1}。");
     public static readonly Phrase DishStays = new("{0} stays in the stove: no storage tagged for it has room.", "{0}留在灶具里：没有带相应标签的储物放得下。");
     public static readonly Phrase Starting = new("The pot is filled for {0}. Starting it.", "已为{0}放好食材，正在开始烹饪。");

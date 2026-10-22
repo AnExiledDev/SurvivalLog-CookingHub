@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- With Exiled's Toolkit installed, each dish put away shows a toast naming the dish and the storage. A dish left in the stove shows a warning toast. Without the Toolkit, the line shows on the cooking screen as before.
+
 ## 0.3.0
 
 - New setting `PutDishesAway` (off by default): a finished dish moves out of the stove into the home storage whose tags want it, ranked the way Storage Hub ranks put-away. A storage already holding that dish is the fallback. A dish nothing takes stays in the stove, and a line says so once.

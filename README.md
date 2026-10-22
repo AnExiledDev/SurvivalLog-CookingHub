@@ -11,7 +11,7 @@ Open any stove, juicer, microwave, oven or coffee machine and its cooking screen
 - **Repeat last**: refills an empty stove with the dish it last started and starts it again.
 - **Top up from storage**: fills the free fuel slots with the fuel the stove already burns, from your bag and storages. Put the first fuel in by hand so the mod knows which kind.
 - **Queue**: press Queue on a dish in the window to line it up for later. The queue is kept between game starts and shared by every save.
-- **Put dishes away** (setting `PutDishesAway`, off by default): a finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away. A dish no tagged storage has room for stays in the stove.
+- **Put dishes away** (setting `PutDishesAway`, off by default): a finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away. A dish no tagged storage has room for stays in the stove. With Exiled's Toolkit, each dish put away shows a toast.
 - **Odds on the cooking screen**: under each dish the cooking screen forecasts, the chance of a Failed, Average, Good and Perfect dish, and why: your cooking level's roll, fresh or spoiled food, seasonings, an exact recipe, the stove. It also shows the worst result a roll can give.
 - **What would help**: buttons under the forecast to add a seasoning you have, or to swap a spoiled ingredient in the pot for a fresh one, each with how much it adds to the Perfect chance.
 - **What can I cook**: every recipe you can see at your cooking level, checked against all the fresh food in your bag and home storages. Filter by ready, missing one, missing more or locked, and search by name. Dishes that use up food spoiling soon are marked and listed first, as are dishes you have never cooked.
@@ -26,7 +26,7 @@ Cooking Hub covers what ProjectCook's dish preview does. Use one or the other, n
 
 - Survival Log 1.1.19131. Built for this version; a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
-- Optional: [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game. Without it, they take effect at the next game start.
+- Optional: [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game, and put-away dishes show as toasts. Without it, they take effect at the next game start.
 
 ## Install
 

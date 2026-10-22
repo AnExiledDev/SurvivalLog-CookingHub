@@ -65,6 +65,9 @@ public static class DishStore
     }
 
     /// <summary>The line shown for a result: where the dish went, or that it stayed because nothing takes it.</summary>
+    /// <summary>The notice for a put-away result: a dish left in the stove is a warning, one put away is not.</summary>
+    public static DishNote Note(Stored stored, bool isChinese) => new(Describe(stored, isChinese), stored is Stored.Stays);
+
     public static string Describe(Stored stored, bool isChinese) => stored switch
     {
         Stored.Into into => Texts.DishStored.Say(isChinese, into.Dish.Name, into.Storage.Name),
@@ -72,3 +75,6 @@ public static class DishStore
         _ => throw new InvalidOperationException("unknown put away result"),
     };
 }
+
+/// <summary>What to tell the player about one dish: the line, and whether it is a warning.</summary>
+public sealed record DishNote(string Text, bool IsWarning);

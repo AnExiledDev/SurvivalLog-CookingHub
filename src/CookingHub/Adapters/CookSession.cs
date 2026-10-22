@@ -21,6 +21,7 @@ internal sealed class CookSession
     private readonly ICookGame _game;
     private readonly IDishGame _dishes;
     private readonly WebPage _page;
+    private readonly Func<DishNote, bool> _toast;
     private readonly WebKeyboard _keyboard = new();
     private readonly Action<bool> _saveSpoilingFirst;
     private readonly Action<bool> _saveShowOdds;
@@ -48,11 +49,12 @@ internal sealed class CookSession
     private float _nextDishSweepAt;
     private readonly HashSet<long> _toldStays = new();
 
-    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
+    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Func<DishNote, bool> toast, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
     {
         _game = game;
         _dishes = dishes;
         _page = page;
+        _toast = toast;
         _saveSpoilingFirst = saveSpoilingFirst;
         _saveShowOdds = saveShowOdds;
         _queue = queue;
@@ -100,7 +102,8 @@ internal sealed class CookSession
 
     /// <summary>
     /// Every few seconds, moves each finished dish out of its stove into the storage its tags want. Where each went is
-    /// shown; a dish no storage takes is retried later but told about only once.
+    /// shown as a toast when Exiled's Toolkit can show one, else on the page; a dish no storage takes is retried later
+    /// but told about only once.
     /// </summary>
     private void PutDishesAway(float now)
     {
@@ -110,10 +113,10 @@ internal sealed class CookSession
         {
             if (stored is Stored.Stays && !_toldStays.Add(stored.Dish.InstanceId)) continue;
 
-            var line = DishStore.Describe(stored, IsChinese);
+            var note = DishStore.Note(stored, IsChinese);
 
-            _log(line);
-            _page.Status(line);
+            _log(note.Text);
+            if (!_toast(note)) _page.Status(note.Text);
         }
     }
 
