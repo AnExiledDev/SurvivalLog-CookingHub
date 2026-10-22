@@ -36,7 +36,8 @@ public static class Advice
 
         var recipe = kitchen.Book.Recipes[main.RecipeId];
         var nudges = new List<Nudge>();
-        var seasoning = SeasoningToAdd(kitchen, stove);
+        // A cooker without a fire (a juicer, a microwave) gets no seasoning nudge, as the approved screen has it.
+        var seasoning = stove.Fuel != null ? SeasoningToAdd(kitchen, stove) : null;
 
         if (seasoning != null)
         {

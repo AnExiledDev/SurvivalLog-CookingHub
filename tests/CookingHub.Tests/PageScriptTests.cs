@@ -165,7 +165,7 @@ public class PageScriptTests
         var page = new PageScript();
 
         page.OpenCooking(PorkRice);
-        page.Cooking("{\"show\":true,\"cooking\":false,\"potEmpty\":false,\"ids\":[1],\"lines\":[{\"floor\":25,\"chances\":[0,20,39,41],\"parts\":[{\"kind\":\"fresh\",\"value\":10,\"count\":0}],\"lowest\":45}],\"nudges\":[]}");
+        page.Cooking("{\"show\":true,\"odds\":true,\"cooking\":false,\"potEmpty\":false,\"ids\":[1],\"lines\":[{\"floor\":25,\"chances\":[0,20,39,41],\"parts\":[{\"kind\":\"fresh\",\"value\":10,\"count\":0}],\"lowest\":45}],\"nudges\":[]}");
         page.Poll();
         page.Cooking(CookView.NoOverlay());
         page.Poll();
@@ -193,6 +193,146 @@ public class PageScriptTests
 
         page.Click("cookingPage().querySelector('.ch-nudge')");
 
-        Assert.Equal(new PageCommand.Season(Salt), Assert.Single(page.Sent));
+        Assert.Equal(new PageCommand.Add(Salt), Assert.Single(page.Sent));
+    }
+
+    private const string StationBook = "[{recipeId:1,name:'Pork Rice',status:0,variantCount:1},{recipeId:2,name:'Stir Fry',status:1,variantCount:1}]";
+
+    private static PageScript Station(FakeGame game, StationExtras? extras = null, bool isCooking = false)
+    {
+        var kitchen = game.Kitchen();
+        var page = new PageScript();
+
+        page.Catalog(CatalogView.Write(Book));
+        page.OpenCooking();
+        page.Run($"stationParts(cookingFrame, {StationBook}, {(isCooking ? "true" : "false")})");
+        page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: true, extras));
+        page.Poll();
+
+        return page;
+    }
+
+    private static string StationTab(string word) => $"cookingPage().querySelectorAll('.ch-tab').filter(function (t) {{ return t.textContent.indexOf('{word}') === 0; }})[0]";
+
+    [Fact]
+    public void A_book_row_the_game_calls_short_gets_Load_when_storage_covers_it()
+    {
+        var page = Station(Stocked());
+
+        Assert.Contains("Chest", page.Text("cookingPage().querySelectorAll('.book-item')[0].textContent"));
+        Assert.Equal(1, Count(page, "cookingPage().querySelectorAll('.book-item')[0].querySelectorAll('.st-fill.ch-st')"));
+        Assert.True(page.Is("cookingPage().querySelectorAll('.book-item')[0].classList.contains('ch-storage')"));
+        Assert.False(page.Is("cookingPage().querySelectorAll('.book-item')[1].classList.contains('ch-storage')"), "a row the game already fills keeps the game's own button");
+
+        page.Click("cookingPage().querySelectorAll('.book-item')[0].querySelector('.st-fill.ch-st')");
+
+        Assert.Equal(new PageCommand.Fill(PorkRice), Assert.Single(page.Sent));
+    }
+
+    [Fact]
+    public void Searching_the_book_hides_rows_that_do_not_match()
+    {
+        var page = Station(Stocked());
+
+        page.Run("type(cookingPage().querySelector('.ch-search'), 'stir')");
+
+        Assert.Equal("none", page.Text("cookingPage().querySelectorAll('.book-item')[0].style.display"));
+        Assert.Equal("", page.Text("cookingPage().querySelectorAll('.book-item')[1].style.display"));
+        Assert.Contains(page.Sent, command => command is PageCommand.Focus { IsTyping: true });
+    }
+
+    [Fact]
+    public void The_queued_tab_loads_the_first_dish_and_removes_any()
+    {
+        var page = Station(Stocked(), new StationExtras(null, new[] { PorkRice, StirFry }, 0));
+
+        page.Click(StationTab("Queued"));
+
+        Assert.Equal("none", page.Text("cookingPage().getElementById('recipeList').style.display"));
+        Assert.Contains("1. Pork Rice", page.Text("cookingPage().querySelector('.ch-view').textContent"));
+
+        page.Click("cookingPage().querySelector('.ch-view').querySelector('.st-fill')");
+        page.Status("ok");
+        page.Click("cookingPage().querySelectorAll('.ch-x')[1]");
+
+        Assert.Equal(new PageCommand[] { new PageCommand.Next(), new PageCommand.Unqueue(StirFry) }, page.Sent);
+    }
+
+    [Fact]
+    public void Load_next_waits_while_the_stove_cooks()
+    {
+        var game = Stocked();
+
+        game.IsCooking = true;
+
+        var page = Station(game, new StationExtras(null, new[] { PorkRice }, 0), isCooking: true);
+
+        page.Click(StationTab("Queued"));
+
+        Assert.Equal(0, Count(page, "cookingPage().querySelector('.ch-view').querySelectorAll('.st-fill')"));
+    }
+
+    [Fact]
+    public void Repeat_last_shows_on_an_idle_empty_stove_and_asks_for_the_last_dish()
+    {
+        var page = Station(Stocked(), new StationExtras(PorkRice, new List<int>(), 0));
+
+        Assert.Contains("Pork Rice", page.Text("cookingPage().getElementById('ch-repeat').textContent"));
+
+        page.Click("cookingPage().getElementById('ch-repeat')");
+
+        Assert.IsType<PageCommand.Repeat>(Assert.Single(page.Sent));
+    }
+
+    [Fact]
+    public void The_game_cook_button_is_pressed_once_per_start_token_and_never_on_a_cooking_stove()
+    {
+        var game = Stocked();
+
+        game.Pot.Add(S(8, Rice, owner: Workbench));
+
+        var page = Station(game, new StationExtras(PorkRice, new List<int>(), 7));
+
+        page.Poll();
+
+        Assert.Equal("1", page.Text("cookPresses"));
+
+        var busy = Station(game, new StationExtras(PorkRice, new List<int>(), 9), isCooking: true);
+
+        Assert.Equal("0", busy.Text("cookPresses"));
+    }
+
+    [Fact]
+    public void Top_up_shows_with_fuel_in_storage_and_asks_for_it()
+    {
+        var game = Stocked();
+
+        game.FuelStock.Add(S(50, Firewood, count: 5, owner: Chest));
+
+        var page = Station(game);
+
+        page.Click("cookingPage().getElementById('ch-topup')");
+
+        Assert.IsType<PageCommand.TopUp>(Assert.Single(page.Sent));
+        Assert.False(Station(Stocked()).Is("cookingPage().getElementById('ch-topup')"));
+    }
+
+    [Fact]
+    public void The_window_queues_a_dish_once_and_lists_it_under_Queued()
+    {
+        var game = Stocked();
+        var page = new PageScript();
+
+        page.Catalog(CatalogView.Write(Book));
+        page.Open(CookView.Ready(game.Kitchen(), Settings, new CookQueue(new[] { StirFry })));
+
+        Assert.True(page.Is("panelButton('queue','2').disabled"));
+
+        page.Click("panelButton('queue','1')");
+        page.Status("ok");
+        page.Click("panelButton('tab','queue')");
+        page.Click("panelButton('unqueue','2')");
+
+        Assert.Equal(new PageCommand[] { new PageCommand.Queue(PorkRice), new PageCommand.Unqueue(StirFry) }, page.Sent);
     }
 }

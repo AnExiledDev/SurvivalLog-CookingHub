@@ -10,7 +10,13 @@ public class ParseTests
     public void The_page_presses_parse_to_their_commands()
     {
         Assert.Equal(new PageCommand.Fill(12), PageCommand.Parse("slmod|cookinghub|fill|12"));
-        Assert.Equal(new PageCommand.Season(30), PageCommand.Parse("slmod|cookinghub|season|30"));
+        Assert.Equal(new PageCommand.Add(30), PageCommand.Parse("slmod|cookinghub|add|30"));
+        Assert.Equal(new PageCommand.Add(30), PageCommand.Parse("slmod|cookinghub|season|30"));
+        Assert.Equal(new PageCommand.Repeat(), PageCommand.Parse("slmod|cookinghub|repeat"));
+        Assert.Equal(new PageCommand.Queue(12), PageCommand.Parse("slmod|cookinghub|queue|12"));
+        Assert.Equal(new PageCommand.Unqueue(12), PageCommand.Parse("slmod|cookinghub|unqueue|12"));
+        Assert.Equal(new PageCommand.Next(), PageCommand.Parse("slmod|cookinghub|next"));
+        Assert.Equal(new PageCommand.TopUp(), PageCommand.Parse("slmod|cookinghub|topup"));
         Assert.Equal(new PageCommand.Swap(20), PageCommand.Parse("slmod|cookinghub|swap|20"));
         Assert.Equal(new PageCommand.SpoilingFirst(false), PageCommand.Parse("slmod|cookinghub|spoilfirst|0"));
         Assert.Equal(new PageCommand.ShowOdds(true), PageCommand.Parse("slmod|cookinghub|odds|1"));
@@ -22,6 +28,8 @@ public class ParseTests
     [InlineData("slmod|cookinghub|fill|-3")]
     [InlineData("slmod|cookinghub|fill|abc")]
     [InlineData("slmod|cookinghub|fill")]
+    [InlineData("slmod|cookinghub|queue|0")]
+    [InlineData("slmod|cookinghub|repeat|3")]
     [InlineData("slmod|cookinghub|odds|2")]
     [InlineData("slmod|farmhub|toggle")]
     [InlineData(null)]

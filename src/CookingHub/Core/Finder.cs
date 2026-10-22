@@ -49,6 +49,29 @@ public static class Finder
         return dishes.OrderBy(dish => dish.State).ThenByDescending(dish => dish.UsesSpoiling).ThenBy(dish => dish.Recipe.Name, System.StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>
+    /// Every recipe the open stove cooks that the game lists, one by one as its recipe book shows them, so each book row
+    /// can be told where its food is and what it lacks.
+    /// </summary>
+    public static IReadOnlyList<Dish> ForStove(Kitchen kitchen, Stove stove)
+    {
+        var fresh = kitchen.Stock.Where(stack => !stack.IsSpoiled && stack.Count > 0).ToList();
+
+        return Shown(kitchen).Where(recipe => stove.Takes(recipe.Id)).OrderBy(recipe => recipe.Id).Select(recipe => Check(kitchen, fresh, recipe, varies: false)).ToList();
+    }
+
+    /// <summary>The fresh stacks a dish could draw on, wherever they are kept.</summary>
+    public static IReadOnlyList<Stack> Sources(Kitchen kitchen, Dish dish)
+    {
+        var fresh = kitchen.Stock.Where(stack => !stack.IsSpoiled && stack.Count > 0).ToList();
+
+        return dish.Needs.SelectMany(need => Matching(kitchen.Book, fresh, dish.Recipe.IsExact, need.Id)).Distinct().ToList();
+    }
+
+    /// <summary>The odds of a dish cooked from fresh food on this stove with nothing added, or null when it has none.</summary>
+    public static Odds? PlainOdds(Kitchen kitchen, Recipe recipe, int stoveBonus) =>
+        recipe.HasOdds ? Quality.For(kitchen.Book.Rules, kitchen.Level, recipe, new PotMix(false, 0, stoveBonus)) : null;
+
     /// <summary>What a recipe wants, as item or type counts.</summary>
     public static IReadOnlyList<(int Id, int Want)> Wants(Recipe recipe) =>
         (recipe.IsExact ? recipe.Specific : recipe.Tags).GroupBy(id => id).Select(group => (group.Key, group.Count())).ToList();
@@ -64,9 +87,7 @@ public static class Finder
         var isUnlocked = recipe.IsUnlocked(kitchen.Level, kitchen.CraftUnlocked);
         var state = !isUnlocked ? Readiness.Locked : missing == 0 ? Readiness.Ready : missing == 1 ? Readiness.MissingOne : Readiness.Short;
         var usesSpoiling = needs.Any(need => Matching(kitchen.Book, fresh, recipe.IsExact, need.Id).Any(stack => stack.HoursLeft <= SpoilingHours));
-        var perfect = state == Readiness.Ready && recipe.HasOdds
-            ? Quality.For(kitchen.Book.Rules, kitchen.Level, recipe, new PotMix(false, 0, kitchen.Stove?.QualityBonus ?? 0)).Of(Tier.Perfect)
-            : (double?)null;
+        var perfect = state == Readiness.Ready ? PlainOdds(kitchen, recipe, kitchen.Stove?.QualityBonus ?? 0)?.Of(Tier.Perfect) : null;
 
         return new Dish(recipe, varies, state, needs, !kitchen.Cooked.Contains(recipe.Id), usesSpoiling, perfect);
     }

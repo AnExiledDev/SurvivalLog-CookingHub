@@ -304,6 +304,53 @@ function forecast(frame, recipeIds) {
   });
 }
 
+// The rest of the station screen: the recipe book (#recipeSection with its title and one .book-item row per entry of
+// State.lastRecipes, as renderRecipeListFromData draws them), the action buttons with the game's Cook button, and the
+// fuel header. Presses of the Cook button are counted in cookPresses.
+var cookPresses = 0;
+
+function stationParts(frame, recipes, isCooking) {
+  var doc = frame.contentDocument;
+  var section = new FakeElement('div');
+  var title = new FakeElement('div');
+  var list = new FakeElement('div');
+  var actions = new FakeElement('div');
+  var cook = new FakeElement('button');
+  var fuel = new FakeElement('div');
+
+  section.id = 'recipeSection';
+  title.id = 'recipePanelTitle';
+  list.id = 'recipeList';
+  recipes.forEach(function (recipe) {
+    var row = new FakeElement('div');
+    var body = new FakeElement('div');
+    var name = new FakeElement('div');
+    var state = new FakeElement('span');
+
+    row.className = 'book-item' + (recipe.status === 0 ? ' insuff' : '');
+    body.className = 'book-bd';
+    name.className = 'book-nm';
+    name.textContent = recipe.name;
+    state.className = recipe.status === 0 ? 'st-fill' : 'st-ready';
+    body.appendChild(name);
+    row.appendChild(body);
+    row.appendChild(state);
+    list.appendChild(row);
+  });
+  section.appendChild(title);
+  section.appendChild(list);
+  actions.className = 'action-buttons';
+  cook.id = 'cookBtn';
+  cook.click = function () { cookPresses++; };
+  actions.appendChild(cook);
+  fuel.className = 'fuel-section-header';
+  doc.body.appendChild(section);
+  doc.body.appendChild(actions);
+  doc.body.appendChild(fuel);
+  frame.contentWindow.State.lastRecipes = recipes;
+  frame.contentWindow.State.isCooking = !!isCooking;
+}
+
 function cookingPage() {
   return document.querySelectorAll('iframe').filter(function (frame) { return /Cooking\.html/.test(frame.src); })[0].contentDocument;
 }

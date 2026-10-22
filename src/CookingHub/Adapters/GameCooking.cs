@@ -18,6 +18,7 @@ namespace CookingHub.Adapters;
 internal sealed class GameCooking : ICookGame
 {
     private const int FoodCategory = 1;
+    private const int BurnsFuelType = 1;
 
     private readonly Action<string> _log;
     private readonly HashSet<string> _reportedFailures = new();
@@ -67,6 +68,29 @@ internal sealed class GameCooking : ICookGame
         return isMoved;
     });
 
+    /// <summary>
+    /// Furniture.OnCookingFuelAdd, what the panel's fuel slot drop sends: one unit of the stack goes into the stove's
+    /// fuel and leaves wherever it was kept. It returns nothing, so it counts when the stove's fuel grew.
+    /// </summary>
+    public bool AddFuel(long furnitureId, long instanceId) => Press("fuel", () =>
+    {
+        var furniture = FurnitureOf(LoadedGame()?.Agents, furnitureId);
+        var cooking = furniture == null ? null : AgentTools.GetAgentComponent<CookingComponent>(furniture);
+
+        if (furniture == null || cooking == null) return false;
+
+        var before = FuelHeld(cooking);
+
+        furniture.OnCookingFuelAdd(instanceId);
+
+        var isAdded = FuelHeld(cooking) != before;
+
+        if (isAdded) Ac_Cooking_RefreshBag.SendAction();
+        else _log($"the game did not burn stack {instanceId} in stove {furnitureId}");
+
+        return isAdded;
+    });
+
     private CookRead ReadKitchen()
     {
         var game = LoadedGame();
@@ -89,7 +113,7 @@ internal sealed class GameCooking : ICookGame
         var stock = ReadStock(items, book, config, role.InstanceId, hour, places);
         var cooked = book.Recipes.Keys.Where(record.IsRecipeUnlocked).ToHashSet();
         var craftUnlocked = book.Recipes.Keys.Where(record.IsCraftRecipeUnlocked).ToHashSet();
-        var stove = ReadStove(items, config, hour, places);
+        var stove = ReadStove(items, config, agents, role.InstanceId, hour, places);
 
         return new CookRead.Ready(new Kitchen(book, Math.Max(1, record.CookingLevel), cooked, craftUnlocked, stock, stove));
     }
@@ -129,7 +153,7 @@ internal sealed class GameCooking : ICookGame
     }
 
     /// <summary>The open cooking panel, or null. The pot is the panel's workbench; the panel's bag is where a swap puts spoiled food.</summary>
-    private static Stove? ReadStove(ItemManager? items, ConfigManager config, int hour, Places places)
+    private static Stove? ReadStove(ItemManager? items, ConfigManager config, AgentManager agents, long roleId, int hour, Places places)
     {
         var ui = GameSingleton.Existing<ReduxUISystem>();
         var screen = Il2CppType.Of<WebUI_Cooking>();
@@ -162,7 +186,79 @@ internal sealed class GameCooking : ICookGame
             cook.QualityBonus,
             allowed,
             pot,
-            Forecasts.Parse(state.PredictionListJson?.Value));
+            Forecasts.Parse(state.PredictionListJson?.Value),
+            places.Name(state.CurrentFurnitureId),
+            cook.SpeedRate,
+            cook.HotPotCookTime,
+            ReadFuel(items, config, agents, cook, state.CurrentFurnitureId, roleId, hour, places));
+    }
+
+    /// <summary>
+    /// A stove that burns fuel (CookType 1): its slots, the kinds it burns (what its slots hold now, else what it was
+    /// built with), and the player's burnable stacks of those kinds. Null for a cooker with no fire.
+    /// </summary>
+    private static Fuel? ReadFuel(ItemManager items, ConfigManager config, AgentManager agents, Config_FurnitureCook cook, long furnitureId, long roleId, int hour, Places places)
+    {
+        var furniture = FurnitureOf(agents, furnitureId);
+        var cooking = furniture == null ? null : AgentTools.GetAgentComponent<CookingComponent>(furniture);
+
+        if (cook.CookType != BurnsFuelType || cooking == null) return null;
+
+        var slots = cooking.GetFuelSlots();
+        var held = new HashSet<int>();
+
+        for (var i = 0; slots != null && i < slots.Count; i++)
+        {
+            if (slots[i] is { Count: > 0 } slot) held.Add(slot.ConfigId);
+        }
+
+        var preferred = held.Count > 0 ? held : Ints(cook.InitialFuel).ToHashSet();
+        var maxSlots = cooking.MaxFuelSlots > 0 ? cooking.MaxFuelSlots : cook.FuelSlotCount;
+
+        return new Fuel(maxSlots, slots?.Count ?? 0, preferred, ReadFuelStock(items, config, preferred, roleId, hour, places));
+    }
+
+    /// <summary>The player's stacks of the given fuel kinds, from the same bag and storages food is read from.</summary>
+    private static List<Core.Stack> ReadFuelStock(ItemManager items, ConfigManager config, HashSet<int> kinds, long roleId, int hour, Places places)
+    {
+        var stock = new List<Core.Stack>();
+        var available = items.GetAllAvailableItems(roleId);
+
+        for (var i = 0; available != null && kinds.Count > 0 && i < available.Count; i++)
+        {
+            var item = available[i];
+
+            if (item == null || item.ItemCount <= 0 || !kinds.Contains(item.ItemConfigId)) continue;
+            if (item.OwnerId != roleId && ItemManager.IsExcludedFromCostPool(item.OwnerId)) continue;
+            if (config.Get_Config_Item(item.ItemConfigId) is not { Burnable: true }) continue;
+
+            stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)) with { Count = item.ItemCount });
+        }
+
+        return stock;
+    }
+
+    private static Furniture? FurnitureOf(AgentManager? agents, long furnitureId)
+    {
+        var furnitures = agents?.GetAllFurnitures();
+
+        for (var i = 0; furnitures != null && i < furnitures.Count; i++)
+        {
+            if (furnitures[i]?.InstanceId == furnitureId) return furnitures[i];
+        }
+
+        return null;
+    }
+
+    /// <summary>How much fuel a stove holds, so an added unit can be seen: slots, and units across them.</summary>
+    private static (int Slots, int Units) FuelHeld(CookingComponent cooking)
+    {
+        var slots = cooking.GetFuelSlots();
+        var units = 0;
+
+        for (var i = 0; slots != null && i < slots.Count; i++) units += slots[i]?.Count ?? 0;
+
+        return (slots?.Count ?? 0, units);
     }
 
     /// <summary>

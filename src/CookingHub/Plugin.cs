@@ -2,6 +2,7 @@ using System.IO;
 using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using CookingHub.Adapters;
+using CookingHub.Core;
 using HarmonyLib;
 using UnityEngine;
 
@@ -12,7 +13,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.1.0";
+    private const string Version = "0.2.0";
 
     public override void Load()
     {
@@ -32,11 +33,14 @@ public sealed class Plugin : BasePlugin
             "设为 true 时，Cooking Hub 的操作也会写入 BepInEx\\cooking-hub.log，该文件在重启游戏后保留。报告问题时再打开。", null, "ModManager.Advanced"));
         var log = new CookLog(Log, Path.Combine(Paths.BepInExRootPath, "cooking-hub.log"));
         var harmony = new Harmony(Guid);
+        var queueFile = Path.Combine(Paths.ConfigPath, "CookingHub.queue.txt");
         var session = new CookSession(
             new GameCooking(log.Write),
             new WebPage(log.Write),
             isOn => isSpoilingFirst.Value = isOn,
             isOn => isShowingOdds.Value = isOn,
+            CookQueue.Read(File.Exists(queueFile) ? File.ReadAllText(queueFile) : null),
+            text => SaveQueue(queueFile, text, log.Write),
             log.Write);
 
         OptionalLive.Watch(isLoggingToFile, isOn => log.IsFileOn = isOn);
@@ -53,5 +57,18 @@ public sealed class Plugin : BasePlugin
         CookTicker.Session = session;
         CookTicker.Log = log.Write;
         AddComponent<CookTicker>();
+    }
+
+    /// <summary>The queue is one line of recipe ids beside the config, shared by every save. A failed write is logged, not thrown.</summary>
+    private static void SaveQueue(string path, string text, System.Action<string> log)
+    {
+        try
+        {
+            File.WriteAllText(path, text);
+        }
+        catch (System.Exception ex) when (ex is IOException or System.UnauthorizedAccessException)
+        {
+            log($"queue not saved: {ex.Message}");
+        }
     }
 }

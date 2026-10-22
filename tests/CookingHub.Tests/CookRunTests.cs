@@ -113,26 +113,141 @@ public class CookRunTests
         away.Override = new CookRead.NotReady("you are away from home");
 
         Assert.Equal("This stove is already cooking.", CookRun.Fill(cooking, PorkRice, true, false).Message);
-        Assert.Equal("Open a stove's cooking screen first.", CookRun.Season(shut, Salt, false).Message);
+        Assert.Equal("Open a stove's cooking screen first.", CookRun.Add(shut, Salt, false).Message);
         Assert.Equal("Can't cook right now: you are away from home.", CookRun.Swap(away, Pork, false).Message);
         Assert.Empty(cooking.Pot);
     }
 
     [Fact]
-    public void Season_adds_the_seasoning_closest_to_spoiling()
+    public void Add_puts_in_the_food_closest_to_spoiling()
     {
         var game = new FakeGame { Stock = { S(1, Salt, hours: 50), S(2, Salt, hours: 5) } };
 
-        Assert.Equal("Added Salt.", CookRun.Season(game, Salt, false).Message);
+        Assert.Equal("Added Salt.", CookRun.Add(game, Salt, false).Message);
         Assert.Equal(new long[] { 2 }, InPot(game));
     }
 
     [Fact]
-    public void Season_refuses_a_full_pot()
+    public void Add_refuses_a_full_pot()
     {
         var game = new FakeGame { MaxFood = 1, Stock = { S(1, Salt) }, Pot = { S(9, Rice, owner: Workbench) } };
 
-        Assert.Equal("The pot is full.", CookRun.Season(game, Salt, false).Message);
+        Assert.Equal("The pot is full.", CookRun.Add(game, Salt, false).Message);
+    }
+
+    [Fact]
+    public void Add_takes_food_from_storage_when_the_bag_has_none()
+    {
+        var game = new FakeGame { Stock = { S(4, Pork, owner: Chest) } };
+
+        Assert.True(CookRun.Add(game, Pork, false).IsDone);
+        Assert.Equal(new long[] { 4 }, InPot(game));
+    }
+
+    [Fact]
+    public void Repeat_fills_the_pot_for_the_dish_this_stove_last_started()
+    {
+        var game = Stocked();
+        var last = new LastCooked(new Dictionary<long, int> { [StoveId] = PorkRice }, null, null, false);
+        var pressed = CookRun.Repeat(game, last, isSpoilingFirst: true, isChinese: false);
+
+        Assert.True(pressed.IsDone);
+        Assert.Equal(new long[] { 2, 3 }, InPot(game));
+    }
+
+    [Fact]
+    public void Repeat_does_nothing_on_a_stove_that_has_not_cooked_yet()
+    {
+        var game = Stocked();
+        var otherStove = new LastCooked(new Dictionary<long, int> { [StoveId + 1] = PorkRice }, null, null, false);
+
+        Assert.Equal("Nothing has been cooked on this stove since the game started.", CookRun.Repeat(game, otherStove, true, false).Message);
+        Assert.Empty(game.Pot);
+    }
+
+    [Fact]
+    public void Load_next_fills_the_first_queued_dish_this_stove_can_cook()
+    {
+        var game = Stocked();
+
+        game.Allowed = new[] { PorkRice };
+
+        var (pressed, filled) = CookRun.Next(game, new CookQueue(new[] { StirFry, PorkRice }), true, false);
+
+        Assert.Equal("The pot is filled for Pork Rice.", pressed.Message);
+        Assert.Equal(PorkRice, filled);
+        Assert.Equal(new long[] { 2, 3 }, InPot(game));
+    }
+
+    [Fact]
+    public void Load_next_keeps_a_dish_in_the_queue_when_its_food_runs_short()
+    {
+        var game = new FakeGame { Stock = { S(1, Rice) } };
+        var (pressed, filled) = CookRun.Next(game, new CookQueue(new[] { PorkRice }), true, false);
+
+        Assert.False(pressed.IsDone);
+        Assert.Null(filled);
+    }
+
+    [Fact]
+    public void Load_next_says_so_when_nothing_queued_suits_this_stove()
+    {
+        var game = Stocked();
+
+        game.Allowed = new[] { StirFry };
+
+        var (pressed, filled) = CookRun.Next(game, new CookQueue(new[] { PorkRice }), true, false);
+
+        Assert.Equal("Nothing queued for this stove.", pressed.Message);
+        Assert.Null(filled);
+    }
+
+    [Fact]
+    public void Top_up_fills_the_free_fuel_slots_with_the_fuel_the_stove_burns()
+    {
+        var game = new FakeGame { FuelSlots = 4, FuelUsed = 1, FuelStock = { S(50, Firewood, count: 5, owner: Chest) } };
+        var pressed = CookRun.TopUp(game, false);
+
+        Assert.Equal("Added 3 fuel.", pressed.Message);
+        Assert.Equal(4, game.FuelUsed);
+        Assert.Equal(2, game.FuelStock.Single().Count);
+    }
+
+    [Fact]
+    public void Top_up_adds_fuel_while_the_stove_cooks()
+    {
+        var game = new FakeGame { IsCooking = true, FuelUsed = 3, FuelStock = { S(50, Firewood, count: 5) } };
+
+        Assert.True(CookRun.TopUp(game, false).IsDone);
+        Assert.Equal(4, game.FuelUsed);
+    }
+
+    [Fact]
+    public void Top_up_waits_for_a_first_fuel_put_in_by_hand()
+    {
+        var game = new FakeGame { FuelStock = { S(50, Firewood, count: 5) } };
+
+        game.FuelPreferred.Clear();
+
+        Assert.Equal("Put one fuel in by hand first; topping up adds more of the same.", CookRun.TopUp(game, false).Message);
+        Assert.Equal(1, game.FuelUsed);
+    }
+
+    [Fact]
+    public void Top_up_reports_how_much_went_in_when_the_game_refuses_part_way()
+    {
+        var game = new FakeGame { FuelStock = { S(50, Firewood), S(51, Firewood) } };
+
+        game.FuelStuck.Add(51);
+
+        Assert.Equal("Added 1 fuel.", CookRun.TopUp(game, false).Message);
+    }
+
+    [Fact]
+    public void Top_up_refuses_a_cooker_with_no_fire_and_full_slots()
+    {
+        Assert.Equal("This stove does not burn fuel.", CookRun.TopUp(new FakeGame { BurnsFuel = false }, false).Message);
+        Assert.Equal("The fuel slots are full.", CookRun.TopUp(new FakeGame { FuelUsed = 4, FuelStock = { S(50, Firewood) } }, false).Message);
     }
 
     [Fact]
@@ -158,6 +273,6 @@ public class CookRunTests
     [Fact]
     public void Press_results_come_in_chinese_when_the_game_is_in_chinese()
     {
-        Assert.Equal("锅已经满了。", CookRun.Season(new FakeGame { MaxFood = 0 }, Salt, true).Message);
+        Assert.Equal("锅已经满了。", CookRun.Add(new FakeGame { MaxFood = 0 }, Salt, true).Message);
     }
 }

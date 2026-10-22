@@ -10,19 +10,18 @@
   // Cooking Hub's place in the HUD's tool column when Exiled's Toolkit lays it out in columns of four.
   var DOCK_ORDER = '31';
   var HUD_STYLE_ID = 'ch-hud-style';
-  var ODDS_STYLE_ID = 'ch-odds-style';
+  var STATION_STYLE_ID = 'ch-station-style';
   var NUDGES_ID = 'ch-nudges';
   var BUSY_TIMEOUT_MS = 5000;
   var TOAST_MS = 3500;
   var SVG_NS = 'http://www.w3.org/2000/svg';
   // A cooking pot with a lid and two handles.
   var POT_PATH = 'M11 3h2v2h-2zM5 7h14v2H5zM3 10h2v2H3zm16 0h2v2h-2zM5 10h14v7a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z';
-  var TABS = ['cook', 'pantry', 'settings'];
-  var TAB_WORD = { cook: 'tabCook', pantry: 'tabPantry', settings: 'tabSettings' };
+  var TABS = ['cook', 'pantry', 'queue', 'settings'];
+  var TAB_WORD = { cook: 'tabCook', pantry: 'tabPantry', queue: 'tabQueue', settings: 'tabSettings' };
   var FILTERS = [['all', 'fAll'], ['ready', 'fReady'], ['one', 'fOne'], ['short', 'fShort'], ['locked', 'fLocked']];
   // Fail, Normal, Good, Perfect: the order the odds arrive in.
   var TIER_WORD = ['tFail', 'tNormal', 'tGood', 'tPerfect'];
-  var TIER_CLASS = ['ch-t-fail', 'ch-t-normal', 'ch-t-good', 'ch-t-perfect'];
   var PART_WORD = { fresh: 'partFresh', rotten: 'partRotten', exact: 'partExact', stove: 'partStove' };
   var SPOILING_HOURS = 24;
 
@@ -193,7 +192,9 @@
     '.ch-inp{font:inherit;font-size:13px;color:#f0e8d8;background:rgba(20,14,8,.45);border:1px solid rgba(220,188,120,.20);border-radius:4px;padding:5px 10px;width:240px;user-select:text}',
     '.ch-inp:focus{outline:none;border-color:#FFC83A}.ch-inp::placeholder{color:#8a7c66}',
     '.ch-rows{display:flex;flex-direction:column;gap:6px}',
-    '.ch-row{display:grid;grid-template-columns:48px minmax(0,1fr) 110px 130px;gap:12px;align-items:center;padding:8px 10px;border-radius:4px;background:rgba(70,58,44,.55);border:1px solid rgba(220,188,120,.11)}',
+    '.ch-acts{display:flex;gap:6px;justify-content:flex-end}',
+    '.ch-qrow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 10px;border-radius:4px;background:rgba(70,58,44,.55);border:1px solid rgba(220,188,120,.11)}',
+    '.ch-row{display:grid;grid-template-columns:48px minmax(0,1fr) 90px auto;gap:12px;align-items:center;padding:8px 10px;border-radius:4px;background:rgba(70,58,44,.55);border:1px solid rgba(220,188,120,.11)}',
     '.ch-row:hover{background:rgba(84,70,52,.7)}.ch-row.ch-locked{opacity:.5}.ch-row.ch-ready{border-color:rgba(140,197,106,.35)}',
     '.ch-main{min-width:0;display:flex;flex-direction:column;gap:5px}',
     '.ch-nm{font-size:15px;font-weight:600;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}',
@@ -223,6 +224,7 @@
     '.ch-icon img{width:100%;height:100%;object-fit:contain}',
     '.ch-i48{width:48px;height:48px;font-size:18px}.ch-i28{width:28px;height:28px;font-size:12px}.ch-i20{width:20px;height:20px;font-size:10px}',
     '.ch-empty{padding:24px;color:#a89a82;font-size:14px;text-align:center}',
+    '.ch-sub{padding:2px 2px 8px;color:#a89a82;font-size:13px}',
     '.ch-lockmsg{padding:10px 14px;border-radius:4px;border:1px solid rgba(255,200,58,.6);background:rgba(255,200,58,.1);color:#FFC83A;font-size:14px}',
     '.ch-foot{display:flex;gap:12px;font-size:13px;color:#a89a82;align-items:center;border-top:1px solid rgba(220,188,120,.11);padding-top:10px}.ch-status{flex:1;color:#f0e8d8}',
     '.ch-kbd{font-size:12px;color:#cbbfa8;border:1px solid rgba(220,188,120,.4);border-bottom-width:2px;border-radius:4px;padding:0 6px;margin:0 4px}',
@@ -410,6 +412,7 @@
     if (state.tab === 'settings') renderSettings();
     else if (!state.data.ready) ui.body.appendChild(el('div', 'ch-lockmsg', state.data.note || ''));
     else if (state.tab === 'pantry') renderPantry();
+    else if (state.tab === 'queue') renderQueue();
     else renderCook();
 
     restoreScrolls(scrolls);
@@ -454,6 +457,7 @@
       var node = act(el('button', 'ch-tab' + (state.tab === tab ? ' ch-on' : ''), say(TAB_WORD[tab])), 'tab', tab);
 
       if (tab === 'pantry' && state.badge > 0) node.appendChild(el('span', 'ch-n', String(state.badge)));
+      if (tab === 'queue' && queued().length > 0) node.appendChild(el('span', 'ch-n', String(queued().length)));
 
       ui.tabs.appendChild(node);
     });
@@ -517,7 +521,7 @@
 
     if (d.perfect != null) put(perf, el('b', '', d.perfect + '%'), text(say('tPerfect')));
 
-    put(row, icon(recipe, 'ch-i48'), main, perf, button(say('fill'), 'fill', d.id, canFill(d), 'ch-hot'));
+    put(row, icon(recipe, 'ch-i48'), main, perf, put(el('div', 'ch-acts'), button(say('queue'), 'queue', d.id, canQueue(d)), button(say('fill'), 'fill', d.id, canFill(d), 'ch-hot')));
 
     return row;
   }
@@ -545,6 +549,29 @@
     if (!stove || stove.cooking || !stove.potEmpty || d.state !== 'ready') return false;
 
     return stove.takesAll || (stove.allowed || []).indexOf(d.id) >= 0;
+  }
+
+  function queued() { return state.data.queue || []; }
+
+  // A dish waits in the queue once, and only while it is learned and there is room.
+  function canQueue(d) {
+    return d.state !== 'locked' && !state.data.queueFull && queued().indexOf(d.id) < 0;
+  }
+
+  // ---------- Queue tab ----------
+
+  function renderQueue() {
+    var well = scroller('queue');
+    var rows = el('div', 'ch-rows');
+
+    well.appendChild(el('div', 'ch-sub', say(queued().length ? 'queueKNote' : 'queueKNone')));
+    queued().forEach(function (id, i) {
+      var recipe = recipeOf(id);
+
+      rows.appendChild(put(el('div', 'ch-qrow'), icon(recipe, 'ch-i28'), el('span', '', (i + 1) + '. ' + recipe.name), button(say('unqueue'), 'unqueue', id)));
+    });
+    well.appendChild(rows);
+    ui.body.appendChild(well);
   }
 
   // ---------- Pantry tab ----------
@@ -708,8 +735,12 @@
         continue;
       }
 
-      if (isHud) placeHudButton(doc);
-      else drawOdds(doc, frames[i].contentWindow);
+      if (isHud) {
+        placeHudButton(doc);
+      } else {
+        drawStation(doc, frames[i].contentWindow);
+        drawOdds(doc, frames[i].contentWindow);
+      }
     }
   }
 
@@ -806,27 +837,545 @@
     return tip;
   }
 
-  // ---------- odds on the cooking screen ----------
+  // ---------- the game's cooking screen ----------
 
-  var ODDS_CSS = [
-    '.ch-odds{margin-top:5px;display:flex;flex-direction:column;gap:3px;font-size:11px;color:#c0c0c0;line-height:1.35}',
-    '.ch-meter{display:flex;height:6px;border-radius:3px;overflow:hidden;background:rgba(10,6,2,.45)}.ch-meter i{display:block;height:100%}',
-    '.ch-tiers{display:flex;flex-wrap:wrap;gap:2px 8px}.ch-tiers b{font-weight:700}',
-    '.ch-t-perfect{color:#EBA308}.ch-t-good{color:#7cb342}.ch-t-normal{color:#8d9aa8}.ch-t-fail{color:#e53935}',
-    '.ch-meter .ch-t-perfect{background:#EBA308}.ch-meter .ch-t-good{background:#7cb342}.ch-meter .ch-t-normal{background:#8d9aa8}.ch-meter .ch-t-fail{background:#e53935}',
-    '.ch-why{color:#a89a82}.ch-why .ch-up{color:#b5e09a}.ch-why .ch-down{color:#ff8a80}',
-    '#ch-nudges{margin:8px 0;padding:8px 10px;border-radius:4px;background:rgba(255,200,58,.09);border:1px solid rgba(255,200,58,.35);display:flex;flex-direction:column;gap:6px}',
-    '#ch-nudges .ch-nh{font-size:12px;letter-spacing:2px;color:#fbb034;font-weight:700}',
-    '.ch-nudge{display:flex;align-items:center;gap:8px;font-size:13px;color:#f0e8d8;padding:5px 8px;border-radius:4px;border:1px solid rgba(220,188,120,.25);background:linear-gradient(180deg,rgba(92,78,60,.9),rgba(66,55,42,.92));cursor:pointer;text-align:left}',
-    '.ch-nudge:hover{border-color:#FFC83A}.ch-nudge .ch-gain{margin-left:auto;color:#b5e09a;font-weight:700;white-space:nowrap}'
+  // Classes the game's own stylesheet already gives these pages (Cooking.html): its colours, its recipe rows.
+  var STATION_CSS = [
+    '.right-panel{width:400px!important}',
+    '.cooking-system{min-height:780px!important}.recipe-section{min-height:300px!important}.prediction-list{max-height:none!important}',
+    '.action-buttons>button{flex:1 1 0;min-width:0}.action-buttons>.ch-btn2{flex:0 0 auto}',
+    '.ch-bar{flex-shrink:0}',
+    '.ch-tabs{display:flex;gap:6px;margin-bottom:8px}',
+    '.ch-tab{flex:1;text-align:center;padding:6px 4px;font-size:13px;border-radius:6px;cursor:pointer;color:var(--text-dark);background:rgba(25,20,18,.85);border:1px solid rgba(255,255,255,.1);white-space:nowrap}',
+    '.ch-tab:hover{color:var(--text-main);border-color:rgba(251,176,52,.4)}',
+    '.ch-tab.ch-on{color:var(--warm-gold);border-color:rgba(251,176,52,.6);background:rgba(251,176,52,.12);font-weight:bold}',
+    '.ch-tab .ch-n{display:inline-block;min-width:16px;padding:0 4px;margin-left:4px;border-radius:8px;font-size:10px;line-height:16px;background:rgba(251,176,52,.25);color:var(--warm-gold)}',
+    '.ch-tab .ch-n.ch-red{background:rgba(224,85,85,.35);color:#ffb4b4}',
+    '.ch-tools{display:flex;gap:6px;margin-bottom:8px;align-items:center}',
+    '.ch-search{flex:1;min-width:0;padding:6px 9px;border-radius:5px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.35);color:var(--text-main);font-size:12px;font-family:inherit}',
+    '.ch-chip{font-size:11px;padding:4px 8px;border-radius:10px;cursor:pointer;color:var(--text-dark);border:1px solid rgba(255,255,255,.14);white-space:nowrap}',
+    '.ch-chip.ch-on{color:var(--warm-gold);border-color:rgba(251,176,52,.55);background:rgba(251,176,52,.1)}',
+    '.ch-where{font-size:11px;margin-top:2px;color:#9fc88a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.ch-where.ch-miss{color:rgba(255,255,255,.4)}',
+    '.ch-mini{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:4px;background:rgba(0,0,0,.5);width:100%}.ch-mini i{display:block;height:100%}',
+    '.ch-pp{font-size:11px;color:var(--q-perfect);flex-shrink:0;width:34px;text-align:right}',
+    '.book-item.ch-storage .st-fill{color:#111;background:var(--warm-gold);border-color:var(--warm-gold)}',
+    '.ch-view{overflow-y:auto;height:0;min-height:0;flex-grow:1;display:flex;flex-direction:column;gap:6px;padding-right:5px}',
+    '.ch-view::-webkit-scrollbar{width:4px}.ch-view::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:2px}',
+    '.ch-sub{font-size:11px;color:var(--text-dark);opacity:.8;padding:2px 2px 0}',
+    '.ch-sp{font-size:11px;padding:2px 6px;border-radius:4px;flex-shrink:0}',
+    '.ch-sp.ch-red{background:rgba(224,85,85,.25);color:#ffb4b4}.ch-sp.ch-amber{background:rgba(251,176,52,.18);color:var(--warm-gold)}',
+    '.ch-sp.ch-dim{background:rgba(255,255,255,.06);color:var(--text-dark)}.ch-sp.ch-bad{background:rgba(224,85,85,.5);color:#fff}',
+    '.ch-x{font-size:11px;padding:2px 6px;border-radius:4px;cursor:pointer;color:var(--text-dark);border:1px solid rgba(255,255,255,.14);flex-shrink:0}',
+    '.ch-odds{width:100%;margin-top:8px;display:grid;grid-template-columns:62px 1fr 38px;gap:3px 8px;align-items:center;font-size:11px}',
+    '.ch-odds .ch-ot{color:var(--text-dark)}.ch-odds .ch-op{text-align:right;color:var(--text-main)}.ch-odds .ch-zero{opacity:.35}',
+    '.ch-odds .ch-bar7{height:7px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden}.ch-odds .ch-bar7 i{display:block;height:100%}',
+    '.ch-why{width:100%;margin-top:6px;font-size:11px;color:var(--text-dark);display:flex;flex-wrap:wrap;gap:4px}',
+    '.ch-why span{padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.06)}',
+    '.ch-why span.ch-up{color:#9fc88a}.ch-why span.ch-down{color:#ff9a9a;background:rgba(224,85,85,.15)}',
+    '#ch-nudges{display:flex;flex-direction:column;gap:6px;margin-top:8px}',
+    '.ch-nudge{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text-main);background:rgba(251,176,52,.1);border:1px dashed rgba(251,176,52,.55);font-family:inherit;text-align:left}',
+    '.ch-nudge:hover{background:rgba(251,176,52,.22)}.ch-nudge .ch-gain{margin-left:auto;color:var(--q-perfect);font-weight:bold;white-space:nowrap}',
+    '.ch-stoveline{font-size:12px;color:var(--text-dark);margin:0 0 8px;display:flex;justify-content:space-between;gap:8px}',
+    '.ch-stoveline b{color:var(--text-main);font-weight:600}',
+    '.ch-btn2{background:rgba(251,176,52,.12);color:var(--warm-gold);border:1px solid rgba(251,176,52,.55);padding:10px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit;white-space:nowrap}',
+    '.ch-btn2:hover{background:rgba(251,176,52,.25)}',
+    '.ch-fuelbtn{font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;color:var(--warm-gold);background:rgba(251,176,52,.12);border:1px solid rgba(251,176,52,.45);margin-left:8px}'
   ].join('\n');
+
+  // Best first, the order the odds are drawn in, with the colours the game gives each quality.
+  var TIER_ORDER = [3, 2, 1, 0];
+  var TIER_COLOR = ['#8a8a8a', 'rgba(255,255,255,.6)', 'var(--q-good)', 'var(--q-perfect)'];
+  var STATION_TABS = [['book', 'tabBook'], ['now', 'tabNow'], ['pantry', 'tabPantry'], ['queue', 'tabQueue']];
+  var STATION_FILTERS = [['all', 'fAll'], ['load', 'fCanLoad'], ['new', 'fNew'], ['locked', 'fLocked']];
+  // Marks everything drawn on the cooking screen, so it can all be taken off again.
+  var OURS = 'ch-st';
+
+  // What the player chose on the cooking screen; the version counts up with each choice so the views redraw.
+  var station = { tab: 'book', filter: 'all', search: '', version: 0, started: 0 };
+
+  function drawStation(doc, win) {
+    if (!overlay.show || !overlay.book) {
+      clearStation(doc);
+
+      return;
+    }
+
+    addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
+
+    var section = doc.getElementById('recipeSection');
+    var list = doc.getElementById('recipeList');
+
+    if (section && list) {
+      hideBookTitle(doc);
+      drawBar(doc, section, list);
+      drawBookRows(doc, win, list);
+      drawView(doc, section);
+    }
+
+    drawStoveLine(doc);
+    drawRepeat(doc);
+    drawTopUp(doc);
+    pressStart(doc, win);
+  }
+
+  function clearStation(doc) {
+    doc.querySelectorAll('.' + OURS).forEach(function (node) { node.remove(); });
+
+    var list = doc.getElementById('recipeList');
+
+    if (!list) return;
+
+    list.style.display = '';
+    list.querySelectorAll('.book-item').forEach(function (row) { row.style.display = ''; });
+  }
+
+  // The tabs stand where the book's title was; hot pot mode hides the whole book, title included, on its own.
+  function hideBookTitle(doc) {
+    var title = doc.getElementById('recipePanelTitle');
+
+    if (title && !(overlay.stove && overlay.stove.hotPot)) title.style.display = 'none';
+  }
+
+  function stationKey() {
+    return overlayVersion + ':' + station.version;
+  }
+
+  // A button on a game page: the page tells the game where its interactive parts are, so a click on it reaches it,
+  // and the click stops here so the row under it does not take it too.
+  function pageButton(doc, tag, className, content, onPress) {
+    var node = make(doc, tag, className + ' interactive-btn ' + OURS, content);
+
+    node.setAttribute('data-interactive', '');
+    node.addEventListener('click', function (e) {
+      e.stopPropagation();
+
+      if (!node.disabled) onPress();
+    });
+
+    return node;
+  }
+
+  function choose(change) {
+    change();
+    station.version++;
+    patchPagesSafely();
+  }
+
+  // ---------- tabs and filters ----------
+
+  // Built once per screen so the search box keeps its cursor; only the labels and the lit choice change after that.
+  function drawBar(doc, section, list) {
+    var bar = firstChildWithClass(section, 'ch-bar');
+
+    if (!bar) {
+      bar = buildBar(doc);
+      section.insertBefore(bar, list);
+    }
+
+    var counts = tabCounts();
+
+    kids(bar.children[0]).forEach(function (tab, i) {
+      var id = STATION_TABS[i][0];
+      var label = say(STATION_TABS[i][1]) + '|' + counts[id];
+
+      tab.className = 'ch-tab interactive-btn' + (station.tab === id ? ' ch-on' : '');
+
+      if (tab.getAttribute('data-label') === label) return;
+
+      tab.setAttribute('data-label', label);
+      tab.textContent = say(STATION_TABS[i][1]);
+
+      if (counts[id]) tab.appendChild(make(doc, 'span', 'ch-n' + (id === 'pantry' ? ' ch-red' : ''), String(counts[id])));
+    });
+
+    var tools = bar.children[1];
+
+    tools.style.display = station.tab === 'book' || station.tab === 'now' ? '' : 'none';
+    kids(tools).slice(1).forEach(function (chip, i) {
+      chip.className = 'ch-chip interactive-btn' + (station.filter === STATION_FILTERS[i][0] ? ' ch-on' : '');
+    });
+  }
+
+  function buildBar(doc) {
+    var bar = make(doc, 'div', 'ch-bar ' + OURS);
+    var tabs = make(doc, 'div', 'ch-tabs');
+    var tools = make(doc, 'div', 'ch-tools');
+    var search = make(doc, 'input', 'ch-search');
+
+    STATION_TABS.forEach(function (t) {
+      tabs.appendChild(pageButton(doc, 'div', 'ch-tab', say(t[1]), function () { choose(function () { station.tab = t[0]; }); }));
+    });
+
+    search.setAttribute('placeholder', say('searchFood'));
+    search.value = station.search;
+    // Typing must not walk the player around, so the game's keys pause while the box has focus.
+    search.addEventListener('focusin', function () { send('focus|1'); });
+    search.addEventListener('focusout', function () { send('focus|0'); });
+    search.addEventListener('input', function () { choose(function () { station.search = search.value; }); });
+    tools.appendChild(search);
+
+    STATION_FILTERS.forEach(function (f) {
+      tools.appendChild(pageButton(doc, 'span', 'ch-chip', say(f[1]), function () { choose(function () { station.filter = f[0]; }); }));
+    });
+
+    bar.appendChild(tabs);
+    bar.appendChild(tools);
+
+    return bar;
+  }
+
+  function tabCounts() {
+    return {
+      book: 0,
+      now: cookNowDishes().length,
+      pantry: (overlay.pantry || []).filter(function (s) { return s.spoiled > 0 || (s.hours != null && s.hours <= SPOILING_HOURS); }).length,
+      queue: (overlay.queue || []).length
+    };
+  }
+
+  // ---------- the game's recipe book rows ----------
+
+  // The game draws one row per entry of State.lastRecipes, in order, with an open group's variants between rows, so
+  // rows are matched to recipes by counting rows, never by position among all children.
+  function drawBookRows(doc, win, list) {
+    var recipes = (win && win.State && win.State.lastRecipes) || [];
+    var rows = kids(list).filter(function (child) { return child.classList.contains('book-item'); });
+    var byId = bookById();
+
+    list.style.display = station.tab === 'book' ? '' : 'none';
+
+    if (rows.length !== recipes.length) return;
+
+    rows.forEach(function (row, i) {
+      var recipe = recipes[i];
+      var dish = byId[recipe.recipeId];
+      var isShown = matchesFilter(recipe, dish) && matchesSearch(recipe.name + ' ' + (recipe.costText || ''), dish);
+      var variants = row.nextSibling;
+
+      decorateRow(doc, row, recipe, dish);
+      row.style.display = isShown ? '' : 'none';
+
+      if (variants && variants.classList.contains('recipe-variants')) variants.style.display = isShown ? '' : 'none';
+    });
+  }
+
+  function bookById() {
+    var byId = {};
+
+    (overlay.book || []).forEach(function (dish) { byId[dish.id] = dish; });
+
+    return byId;
+  }
+
+  function matchesFilter(recipe, dish) {
+    if (station.filter === 'load') return !!dish && dish.state === 'ready';
+    if (station.filter === 'new') return !!dish && dish.isNew;
+    if (station.filter === 'locked') return !!recipe.craftLocked || (!!dish && dish.state === 'locked');
+
+    return true;
+  }
+
+  function matchesSearch(words, dish) {
+    var needle = station.search.trim().toLowerCase();
+
+    if (!needle) return true;
+
+    var food = dish ? (dish.places || []).concat((dish.missing || []).map(needName)) : [];
+
+    return (words + ' ' + food.join(' ')).toLowerCase().indexOf(needle) >= 0;
+  }
+
+  // Where the food is or what is missing, a bar of the odds, the Perfect chance, and Load when the game's own fill
+  // would refuse (its rows only count the bag) but the player's storages cover the dish.
+  function decorateRow(doc, row, recipe, dish) {
+    var key = String(overlayVersion);
+
+    if (row.getAttribute('data-ch') === key) return;
+
+    if (!row.hasAttribute('data-ch-class')) row.setAttribute('data-ch-class', row.className);
+
+    row.setAttribute('data-ch', key);
+    row.className = row.getAttribute('data-ch-class');
+    removeOurs(row);
+
+    if (!dish) return;
+
+    var body = firstChildWithClass(row, 'book-bd') || row;
+    var gameButton = firstChildWithClass(row, 'st-fill') || firstChildWithClass(row, 'st-ready');
+    var isGroup = !recipe.craftLocked && recipe.variantCount > 1;
+
+    removeOurs(body);
+    body.appendChild(whereLine(doc, dish));
+
+    if (dish.chances) {
+      body.appendChild(miniBar(doc, dish.chances));
+      row.insertBefore(make(doc, 'span', 'ch-pp ' + OURS, dish.chances[3] + '%'), gameButton);
+    }
+
+    if (recipe.status !== 0 || recipe.craftLocked || isGroup || dish.state !== 'ready') return;
+
+    row.className = row.className.split(' ').filter(function (name) { return name !== 'insuff'; }).join(' ') + ' fillable ch-storage';
+    row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+  }
+
+  // A live HTMLCollection has no array methods.
+  function kids(node) {
+    return Array.prototype.slice.call(node.children);
+  }
+
+  function removeOurs(node) {
+    kids(node).forEach(function (child) {
+      if (child.classList.contains(OURS)) child.remove();
+    });
+  }
+
+  function whereLine(doc, dish) {
+    var missing = dish.missing || [];
+
+    if (missing.length) return make(doc, 'div', 'ch-where ch-miss ' + OURS, say('missing', missing.map(needName).join(', ')));
+
+    return make(doc, 'div', 'ch-where ' + OURS, (dish.places || []).join(', '));
+  }
+
+  function needName(need) {
+    return need.type ? say('anyType', typeOf(need.id).name) : itemOf(need.id).name;
+  }
+
+  function miniBar(doc, chances) {
+    var bar = make(doc, 'span', 'ch-mini ' + OURS);
+
+    TIER_ORDER.forEach(function (tier) {
+      var part = make(doc, 'i');
+
+      part.style.width = chances[tier] + '%';
+      part.style.background = TIER_COLOR[tier];
+      bar.appendChild(part);
+    });
+
+    return bar;
+  }
+
+  // ---------- Cook now, Pantry and Queued ----------
+
+  function drawView(doc, section) {
+    var view = firstChildWithClass(section, 'ch-view');
+    var key = station.tab + ':' + stationKey();
+
+    if (station.tab === 'book') {
+      if (view) view.remove();
+
+      return;
+    }
+
+    if (view && view.getAttribute('data-key') === key) return;
+
+    var top = view ? view.scrollTop : 0;
+    var fresh = make(doc, 'div', 'ch-view ' + OURS);
+
+    fresh.setAttribute('data-key', key);
+
+    if (station.tab === 'now') fillNow(doc, fresh);
+    else if (station.tab === 'pantry') fillPantry(doc, fresh);
+    else fillQueue(doc, fresh);
+
+    if (view) view.remove();
+
+    section.appendChild(fresh);
+    fresh.scrollTop = top;
+  }
+
+  // What this stove can make from the bag and every storage, the dish whose food spoils soonest first.
+  function cookNowDishes() {
+    return (overlay.book || []).filter(function (dish) { return dish.state === 'ready'; }).sort(function (a, b) {
+      return (a.hours == null ? Infinity : a.hours) - (b.hours == null ? Infinity : b.hours);
+    });
+  }
+
+  function fillNow(doc, view) {
+    var shown = cookNowDishes().filter(function (dish) {
+      return matchesFilter({}, dish) && matchesSearch(recipeOf(dish.id).name, dish);
+    });
+
+    view.appendChild(make(doc, 'div', 'ch-sub', say('nowNote')));
+
+    if (!shown.length) view.appendChild(make(doc, 'div', 'ch-sub', say('nowNone')));
+
+    shown.forEach(function (dish) {
+      var row = viewRow(doc, recipeOf(dish.id), recipeOf(dish.id).name, whereLine(doc, dish), 'fillable');
+
+      if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
+      if (dish.hours != null) row.appendChild(spoilChip(doc, dish.hours));
+      if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
+
+      row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+      view.appendChild(row);
+    });
+  }
+
+  // Every food the player has, soonest to spoil first; a click puts one in the pot from wherever it is kept.
+  function fillPantry(doc, view) {
+    var shelves = overlay.pantry || [];
+
+    view.appendChild(make(doc, 'div', 'ch-sub', shelves.length ? say('pantryNote') : say('pEmpty')));
+
+    shelves.forEach(function (s) {
+      var item = itemOf(s.item);
+      var name = item.name + ' x' + s.count + (s.spoiled > 0 ? ', ' + say('pSpoiled', s.spoiled) : '');
+      var row = viewRow(doc, item, name, make(doc, 'div', 'book-cost', (s.places || []).join(', ')), s.count > 0 ? 'fillable' : 'insuff');
+
+      row.appendChild(s.spoiled > 0 && s.count === 0 ? make(doc, 'span', 'ch-sp ch-bad', say('spoiledWord')) : spoilChip(doc, s.hours));
+
+      if (s.count > 0 && !overlay.cooking) {
+        row.className += ' interactive-btn';
+        row.setAttribute('data-interactive', '');
+        row.addEventListener('click', function (e) {
+          e.stopPropagation();
+          sendAction('add|' + s.item);
+        });
+      }
+
+      view.appendChild(row);
+    });
+  }
+
+  // The dishes queued in the Cooking Hub window that this stove can cook; Load next fills the first one.
+  function fillQueue(doc, view) {
+    var queue = overlay.queue || [];
+    var canLoad = !overlay.cooking && overlay.potEmpty;
+
+    view.appendChild(make(doc, 'div', 'ch-sub', queue.length ? say('queueNote') : say('queueNone')));
+
+    queue.forEach(function (id, i) {
+      var recipe = recipeOf(id);
+      var dish = bookById()[id];
+      var row = viewRow(doc, recipe, (i + 1) + '. ' + recipe.name, dish ? whereLine(doc, dish) : null, i === 0 ? 'fillable' : '');
+
+      if (i === 0 && canLoad) row.appendChild(pageButton(doc, 'span', 'st-fill', say('loadNext'), function () { sendAction('next'); }));
+      else row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('waiting')));
+
+      row.appendChild(pageButton(doc, 'span', 'ch-x', say('unqueue'), function () { sendAction('unqueue|' + id); }));
+      view.appendChild(row);
+    });
+  }
+
+  // A row in the game's own recipe row style: icon, then name over a second line.
+  function viewRow(doc, thing, name, second, stateClass) {
+    var row = make(doc, 'div', 'book-item' + (stateClass ? ' ' + stateClass : ''));
+    var iconBox = make(doc, 'div', 'book-ico');
+    var body = make(doc, 'div', 'book-bd');
+
+    if (thing.icon) {
+      var img = make(doc, 'img');
+      img.src = thing.icon;
+      iconBox.appendChild(img);
+    }
+
+    body.appendChild(make(doc, 'div', 'book-nm', name));
+
+    if (second) body.appendChild(second);
+
+    row.appendChild(iconBox);
+    row.appendChild(body);
+
+    return row;
+  }
+
+  function spoilChip(doc, hours) {
+    if (hours == null) return make(doc, 'span', 'ch-sp ch-dim', say('pKeeps'));
+
+    var tone = hours <= SPOILING_HOURS ? 'ch-red' : hours <= 3 * SPOILING_HOURS ? 'ch-amber' : 'ch-dim';
+
+    return make(doc, 'span', 'ch-sp ' + tone, timeLeft(hours));
+  }
+
+  // ---------- the stove line, Repeat last, fuel ----------
+
+  // Puts the node build makes under parent, before `before`, unless the one already there was drawn for the same key.
+  function keepDrawn(doc, id, key, parent, before, build) {
+    var existing = doc.getElementById(id);
+
+    if (existing && existing.getAttribute('data-key') === key && existing.parentNode === parent) return;
+    if (existing) existing.remove();
+    if (!parent || !build) return;
+
+    var node = build();
+
+    node.id = id;
+    node.setAttribute('data-key', key);
+    parent.insertBefore(node, before);
+  }
+
+  function drawStoveLine(doc) {
+    var actions = doc.querySelector('.action-buttons');
+    var stove = overlay.stove;
+
+    keepDrawn(doc, 'ch-stoveline', String(overlayVersion), actions && actions.parentNode, actions, stove && function () {
+      var line = make(doc, 'div', 'ch-stoveline ' + OURS);
+      var left = make(doc, 'span', '', stove.name + ': ');
+
+      left.appendChild(make(doc, 'b', '', say('speed', stove.speed)));
+      left.appendChild(doc.createTextNode(', '));
+      left.appendChild(make(doc, 'b', '', say('quality', stove.bonus)));
+      line.appendChild(left);
+
+      if (stove.cookSecs != null) line.appendChild(make(doc, 'span', '', say('cookTime', cookTime(stove.cookSecs))));
+
+      return line;
+    });
+  }
+
+  function cookTime(seconds) {
+    var minutes = Math.max(1, Math.round(seconds / 60));
+    var hours = Math.floor(minutes / 60);
+
+    return hours > 0 ? say('hm', hours, minutes % 60) : say('mins', minutes);
+  }
+
+  // Refills the pot with the dish this stove last started and starts it again: only while it stands empty and idle.
+  function drawRepeat(doc) {
+    var actions = doc.querySelector('.action-buttons');
+    var isShown = overlay.last != null && !overlay.cooking && overlay.potEmpty;
+
+    keepDrawn(doc, 'ch-repeat', overlayVersion + ':' + overlay.last, actions, null, isShown && function () {
+      return pageButton(doc, 'button', 'ch-btn2', say('repeat', recipeOf(overlay.last).name), function () { sendAction('repeat'); });
+    });
+  }
+
+  // Fuel of the kinds this stove already burns, from the bag and every storage.
+  function drawTopUp(doc) {
+    var header = doc.querySelector('.fuel-section-header');
+    var fuel = overlay.stove && overlay.stove.fuel;
+    var isShown = !!fuel && fuel.known && fuel.have > 0;
+
+    keepDrawn(doc, 'ch-topup', overlayVersion + ':' + (fuel ? fuel.have : 0), header, null, isShown && function () {
+      return pageButton(doc, 'span', 'ch-fuelbtn', say('topUp', fuel.have), function () { sendAction('topup'); });
+    });
+  }
+
+  // Repeat last asks for the game's own Cook button once its pot is filled: the plugin raises the start token for a
+  // few seconds, and only while the pot forecasts that dish. The button also stops a cooking stove, so it is pressed
+  // only while nothing cooks, and once per token.
+  function pressStart(doc, win) {
+    var token = overlay.start || 0;
+    var cook = doc.getElementById('cookBtn');
+    var isIdle = !!win && !!win.State && !win.State.isCooking;
+
+    if (!token || token === station.started || overlay.cooking || overlay.potEmpty) return;
+    if (!cook || cook.disabled || !isIdle) return;
+
+    station.started = token;
+    cook.click();
+  }
+
+  // ---------- odds on the cooking screen ----------
 
   // Draws only when the screen forecasts exactly the dishes the plugin read, in the same order, so odds never sit
   // under the wrong dish while one side catches up with the other.
   function drawOdds(doc, win) {
     var list = doc.getElementById('predictionList');
     var cards = list ? list.querySelectorAll('.pot-card') : [];
-    var isMatch = overlay.show && !!list && sameDishes(win, cards.length);
+    var isMatch = overlay.show && overlay.odds && !!list && sameDishes(win, cards.length);
 
     if (!isMatch) {
       clearOdds(doc);
@@ -834,7 +1383,7 @@
       return;
     }
 
-    addPageStyle(doc, ODDS_STYLE_ID, ODDS_CSS);
+    addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
 
     for (var i = 0; i < cards.length; i++) {
       var odds = (overlay.lines || [])[i];
@@ -844,7 +1393,15 @@
 
       if (drawn && drawn.getAttribute('data-version') === String(overlayVersion)) continue;
       if (drawn) drawn.remove();
-      if (odds) holder.appendChild(oddsBlock(doc, odds));
+
+      var why = firstChildWithClass(holder, 'ch-why');
+
+      if (why) why.remove();
+
+      if (odds) {
+        holder.appendChild(oddsBlock(doc, odds));
+        holder.appendChild(whyBlock(doc, odds));
+      }
     }
 
     drawNudges(doc, list);
@@ -868,6 +1425,7 @@
 
   function clearOdds(doc) {
     doc.querySelectorAll('.ch-odds').forEach(function (node) { node.remove(); });
+    doc.querySelectorAll('.ch-why').forEach(function (node) { node.remove(); });
 
     var nudges = doc.getElementById(NUDGES_ID);
 
@@ -875,48 +1433,48 @@
   }
 
   function firstChildWithClass(node, name) {
-    for (var i = 0; i < node.children.length; i++) {
-      if (node.children[i].classList.contains(name)) return node.children[i];
+    var children = kids(node);
+
+    for (var i = 0; i < children.length; i++) {
+      if (children[i].classList.contains(name)) return children[i];
     }
 
     return null;
   }
 
-  // A bar of the four chances, the chances in words, then why: the level's floor and each bonus.
+  // One line per quality, best first: its name, a bar, and the chance.
   function oddsBlock(doc, odds) {
     var box = make(doc, 'div', 'ch-odds');
-    var meter = make(doc, 'div', 'ch-meter');
-    var tiers = make(doc, 'div', 'ch-tiers');
-    var why = make(doc, 'div', 'ch-why');
 
     box.setAttribute('data-version', String(overlayVersion));
 
-    for (var tier = 3; tier >= 0; tier--) {
-      var chance = odds.chances[tier];
+    TIER_ORDER.forEach(function (tier) {
+      var chance = odds.chances[tier] || 0;
+      var dim = chance ? '' : ' ch-zero';
+      var bar = make(doc, 'span', 'ch-bar7' + dim);
+      var fill = make(doc, 'i');
 
-      if (!chance) continue;
-
-      var part = make(doc, 'i', TIER_CLASS[tier]);
-      part.style.width = chance + '%';
-      meter.appendChild(part);
-
-      var word = make(doc, 'span', TIER_CLASS[tier], say(TIER_WORD[tier]) + ' ');
-      word.appendChild(make(doc, 'b', '', chance + '%'));
-      tiers.appendChild(word);
-    }
-
-    why.appendChild(doc.createTextNode(say('why') + ': ' + say('rollFloor', odds.floor)));
-    (odds.parts || []).forEach(function (p) {
-      why.appendChild(doc.createTextNode(', ' + partName(p) + ' '));
-      why.appendChild(make(doc, 'span', p.value < 0 ? 'ch-down' : 'ch-up', (p.value > 0 ? '+' : '') + p.value));
+      fill.style.width = chance + '%';
+      fill.style.background = TIER_COLOR[tier];
+      bar.appendChild(fill);
+      box.appendChild(make(doc, 'span', 'ch-ot' + dim, say(TIER_WORD[tier])));
+      box.appendChild(bar);
+      box.appendChild(make(doc, 'span', 'ch-op' + dim, chance + '%'));
     });
-    why.appendChild(doc.createTextNode('. ' + say('lowest') + ' ' + odds.lowest + '.'));
-
-    box.appendChild(meter);
-    box.appendChild(tiers);
-    box.appendChild(why);
 
     return box;
+  }
+
+  // Why: the level's roll range, then each bonus and penalty.
+  function whyBlock(doc, odds) {
+    var why = make(doc, 'div', 'ch-why');
+
+    why.appendChild(make(doc, 'span', '', say('whyLevel', overlay.level, odds.floor)));
+    (odds.parts || []).forEach(function (p) {
+      why.appendChild(make(doc, 'span', p.value < 0 ? 'ch-down' : 'ch-up', partName(p) + ' ' + (p.value > 0 ? '+' : '') + p.value));
+    });
+
+    return why;
   }
 
   function partName(p) {
@@ -943,11 +1501,11 @@
 
     box.id = NUDGES_ID;
     box.setAttribute('data-version', String(overlayVersion));
-    box.appendChild(make(doc, 'div', 'ch-nh', say('hub')));
     nudges.forEach(function (n) { box.appendChild(nudgeButton(doc, n)); });
     list.parentNode.insertBefore(box, list.nextSibling);
   }
 
+  // A seasoning goes in as one more of it; a swap trades a spoiled ingredient for a fresh one of the same.
   function nudgeButton(doc, n) {
     var name = itemOf(n.item).name;
     var node = make(doc, 'button', 'ch-nudge interactive-btn', n.kind === 'season' ? say('nSeason', name) : say('nSwap', name));
@@ -958,7 +1516,7 @@
 
     node.addEventListener('click', function (e) {
       e.stopPropagation();
-      sendAction(n.kind + '|' + n.item);
+      sendAction((n.kind === 'season' ? 'add' : 'swap') + '|' + n.item);
     });
 
     return node;

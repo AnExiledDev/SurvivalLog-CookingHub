@@ -68,8 +68,20 @@ public sealed record Stack(long InstanceId, int ItemId, int Count, long OwnerId,
 public sealed record Forecast(int RecipeId, bool IsExact, bool IsKnown);
 
 /// <summary>
+/// A stove's fuel: how many slots it has and how many hold fuel, the kinds it burns (what it holds now and what it
+/// came with), and the stacks of those kinds the player has in their bag and home storage.
+/// </summary>
+public sealed record Fuel(int Slots, int Used, IReadOnlyCollection<int> Preferred, IReadOnlyList<Stack> Stock)
+{
+    public int Free => System.Math.Max(0, Slots - Used);
+
+    public int Have => Stock.Sum(stack => stack.Count);
+}
+
+/// <summary>
 /// The cooking panel while it is open: the stove, what is in its pot (the workbench), how much fits, and the dishes the
-/// panel forecasts for it. Allowed is null when the stove takes every recipe.
+/// panel forecasts for it. Allowed is null when the stove takes every recipe. Fuel is null for a stove that burns none
+/// (a juicer, a microwave). HotPotSeconds is 0 when the stove's row gives no hot pot time.
 /// </summary>
 public sealed record Stove(
     long FurnitureId,
@@ -81,8 +93,25 @@ public sealed record Stove(
     int QualityBonus,
     IReadOnlyCollection<int>? Allowed,
     IReadOnlyList<Stack> Pot,
-    IReadOnlyList<Forecast> Forecasts)
+    IReadOnlyList<Forecast> Forecasts,
+    string Name = "",
+    float SpeedRate = 1f,
+    int HotPotSeconds = 0,
+    Fuel? Fuel = null)
 {
+    private const int DefaultHotPotSeconds = 3600;
+
+    /// <summary>
+    /// How long a recipe cooks on this stove in game seconds (Furniture.StartCooking): a hot pot takes its own fixed
+    /// time, anything else the recipe's time divided by the stove's speed.
+    /// </summary>
+    public double CookSeconds(Recipe recipe)
+    {
+        if (IsHotPot) return HotPotSeconds > 0 ? HotPotSeconds : DefaultHotPotSeconds;
+
+        return recipe.CookSeconds / (SpeedRate > 0 ? SpeedRate : 1f);
+    }
+
     public int PotCount => Pot.Sum(stack => stack.Count);
 
     /// <summary>Free slots. The game counts a pot by its stacks, not its units (Reducer_Web_Cooking.CheckCookingAdmission).</summary>
@@ -118,4 +147,7 @@ public interface ICookGame
     /// is used up a little at a time. False when the game refused.
     /// </summary>
     bool MoveStack(long instanceId, long fromOwnerId, long toOwnerId);
+
+    /// <summary>Puts one unit of a fuel stack into a free fuel slot of the stove. False when the game refused.</summary>
+    bool AddFuel(long furnitureId, long instanceId);
 }

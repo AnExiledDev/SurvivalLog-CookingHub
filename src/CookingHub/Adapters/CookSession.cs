@@ -14,12 +14,14 @@ internal sealed class CookSession
     private const float OpenRefreshSeconds = 1f;
     private const float StoveRefreshSeconds = 0.5f;
     private const float ClosedRefreshSeconds = 5f;
+    private const float StartWindowSeconds = 4f;
 
     private readonly ICookGame _game;
     private readonly WebPage _page;
     private readonly WebKeyboard _keyboard = new();
     private readonly Action<bool> _saveSpoilingFirst;
     private readonly Action<bool> _saveShowOdds;
+    private readonly Action<string> _saveQueue;
     private readonly Action<string> _log;
 
     private KeyCode _panelKey;
@@ -34,12 +36,20 @@ internal sealed class CookSession
     private bool? _sentLive;
     private float _nextRefreshAt;
 
-    public CookSession(ICookGame game, WebPage page, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, Action<string> log)
+    private CookQueue _queue;
+    private LastCooked _last = LastCooked.None;
+    private Cookbook? _book;
+    private int _startToken;
+    private float _startUntil;
+
+    public CookSession(ICookGame game, WebPage page, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
     {
         _game = game;
         _page = page;
         _saveSpoilingFirst = saveSpoilingFirst;
         _saveShowOdds = saveShowOdds;
+        _queue = queue;
+        _saveQueue = saveQueue;
         _log = log;
     }
 
@@ -122,8 +132,23 @@ internal sealed class CookSession
             case PageCommand.Fill fill:
                 Press($"fill {fill.RecipeId}", () => CookRun.Fill(_game, fill.RecipeId, _isSpoilingFirst, IsChinese));
                 break;
-            case PageCommand.Season season:
-                Press($"season {season.ItemId}", () => CookRun.Season(_game, season.ItemId, IsChinese));
+            case PageCommand.Add add:
+                Press($"add {add.ItemId}", () => CookRun.Add(_game, add.ItemId, IsChinese));
+                break;
+            case PageCommand.Repeat:
+                Press("repeat", Repeat);
+                break;
+            case PageCommand.Next:
+                Press("next", LoadNext);
+                break;
+            case PageCommand.TopUp:
+                Press("top up", () => CookRun.TopUp(_game, IsChinese));
+                break;
+            case PageCommand.Queue queue:
+                Press($"queue {queue.RecipeId}", () => ChangeQueue(queue.RecipeId, isAdding: true));
+                break;
+            case PageCommand.Unqueue unqueue:
+                Press($"unqueue {unqueue.RecipeId}", () => ChangeQueue(unqueue.RecipeId, isAdding: false));
                 break;
             case PageCommand.Swap swap:
                 Press($"swap {swap.ItemId}", () => CookRun.Swap(_game, swap.ItemId, IsChinese));
@@ -141,6 +166,51 @@ internal sealed class CookSession
             default:
                 throw new InvalidOperationException("unhandled page command " + command);
         }
+    }
+
+    /// <summary>
+    /// Fills the pot for the dish this stove last started, then asks the page to press the game's own Cook button: the
+    /// start token counts up once per filled pot, and stays up only until the stove cooks or a few seconds pass.
+    /// </summary>
+    private Pressed Repeat()
+    {
+        var pressed = CookRun.Repeat(_game, _last, _isSpoilingFirst, IsChinese);
+
+        if (!pressed.IsDone || _book == null || _last.WatchedId is not { } stoveId || _last.For(stoveId) is not { } recipeId) return pressed;
+
+        _startToken++;
+        _startUntil = Time.unscaledTime + StartWindowSeconds;
+
+        return _book.Recipes.TryGetValue(recipeId, out var recipe) ? new Pressed(true, Texts.Starting.Say(IsChinese, recipe.Name)) : pressed;
+    }
+
+    /// <summary>Fills the pot for the first queued dish this stove can cook; a dish that went in leaves the queue.</summary>
+    private Pressed LoadNext()
+    {
+        var (pressed, filled) = CookRun.Next(_game, _queue, _isSpoilingFirst, IsChinese);
+
+        if (filled is { } recipeId) SaveQueue(_queue.Remove(recipeId));
+
+        return pressed;
+    }
+
+    private Pressed ChangeQueue(int recipeId, bool isAdding)
+    {
+        if (_book == null) return new Pressed(false, Texts.NoGame.Pick(IsChinese));
+
+        var (queue, pressed) = _queue.Press(_book, recipeId, isAdding, IsChinese);
+
+        SaveQueue(queue);
+
+        return pressed;
+    }
+
+    private void SaveQueue(CookQueue queue)
+    {
+        if (ReferenceEquals(queue, _queue)) return;
+
+        _queue = queue;
+        _saveQueue(queue.Write());
     }
 
     private void ForgetSent()
@@ -170,6 +240,11 @@ internal sealed class CookSession
         var kitchen = (read as CookRead.Ready)?.Kitchen;
         var isStoveOpen = kitchen?.Stove != null;
 
+        _last = _last.See(kitchen?.Stove);
+
+        if (kitchen != null) _book = kitchen.Book;
+        if (kitchen?.Stove is not { IsCooking: false } || now >= _startUntil) _startUntil = 0f;
+
         _nextRefreshAt = now + (isStoveOpen ? StoveRefreshSeconds : _isOpen ? OpenRefreshSeconds : ClosedRefreshSeconds);
         SendLive(read is not CookRead.NoGame);
         SendBadge(kitchen == null ? 0 : Pantry.SpoilingSoon(kitchen, Finder.SpoilingHours));
@@ -195,11 +270,20 @@ internal sealed class CookSession
     /// <summary>The odds on the game's cooking screen, sent only when they changed. The catalog goes first, since nudges name items by id.</summary>
     private void SendOverlay(Kitchen? kitchen)
     {
-        var overlay = kitchen?.Stove is { } stove ? CookView.Overlay(kitchen, stove, _isShowingOdds) : CookView.NoOverlay();
+        var overlay = kitchen?.Stove is { } stove ? CookView.Overlay(kitchen, stove, _isShowingOdds, Extras(stove)) : CookView.NoOverlay();
 
         if (overlay == _shownOverlay) return;
         if (kitchen != null) SendCatalog(kitchen.Book);
         if (_page.Cooking(overlay)) _shownOverlay = overlay;
+    }
+
+    /// <summary>The start token goes out only while the pot forecasts the repeated dish, so a pot the game half filled is never started.</summary>
+    private StationExtras Extras(Stove stove)
+    {
+        var last = _last.For(stove.FurnitureId);
+        var isStarting = _startUntil > 0f && last != null && _last.Pending == last;
+
+        return new StationExtras(last, _queue.For(stove), isStarting ? _startToken : 0);
     }
 
     private void Toggle()
@@ -246,7 +330,7 @@ internal sealed class CookSession
         {
             case CookRead.Ready ready:
                 SendCatalog(ready.Kitchen.Book);
-                view = CookView.Ready(ready.Kitchen, settings);
+                view = CookView.Ready(ready.Kitchen, settings, _queue);
                 break;
             case CookRead.NotReady notReady:
                 view = CookView.NotReady(Texts.NotReady.Say(IsChinese, notReady.Reason), settings);

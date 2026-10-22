@@ -10,9 +10,9 @@ public readonly record struct Take(long InstanceId, long OwnerId, int ItemId, in
 public readonly record struct Pressed(bool IsDone, string Message);
 
 /// <summary>
-/// The presses that put food in the open cooking panel's pot: fill it for a dish, add a seasoning, swap a spoiled item
-/// for a fresh one. Food moves a stack at a time, the way the panel's own recipe click fills a pot, and a press stops at
-/// the first refusal.
+/// The presses that put food in the open cooking panel's pot: fill it for a dish or the next queued one, add one food,
+/// swap a spoiled item for a fresh one, and top the stove's fuel up. Food moves a stack at a time, the way the panel's
+/// own recipe click fills a pot, and a press stops at the first refusal.
 /// </summary>
 public static class CookRun
 {
@@ -23,12 +23,41 @@ public static class CookRun
         _ => throw new System.InvalidOperationException("unknown reach"),
     };
 
-    /// <summary>Puts a fresh seasoning in the pot, the one closest to spoiling.</summary>
-    public static Pressed Season(ICookGame game, int itemId, bool isChinese) => Reach(game, isChinese) switch
+    /// <summary>Puts one fresh stack of a food in the pot, the one closest to spoiling, from wherever it is kept.</summary>
+    public static Pressed Add(ICookGame game, int itemId, bool isChinese) => Reach(game, isChinese) switch
     {
-        Reached.Open open => Season(game, open.Kitchen, open.Stove, itemId, isChinese),
+        Reached.Open open => Add(game, open.Kitchen, open.Stove, itemId, isChinese),
         Reached.Refused refused => refused.Pressed,
         _ => throw new System.InvalidOperationException("unknown reach"),
+    };
+
+    /// <summary>Fills the empty pot for the dish this stove last started.</summary>
+    public static Pressed Repeat(ICookGame game, LastCooked last, bool isSpoilingFirst, bool isChinese) => Reach(game, isChinese) switch
+    {
+        Reached.Open { Stove: var stove } open when last.For(stove.FurnitureId) is { } recipeId => Fill(game, open.Kitchen, stove, recipeId, isSpoilingFirst, isChinese),
+        Reached.Open => No(Texts.NoLast, isChinese),
+        Reached.Refused refused => refused.Pressed,
+        _ => throw new System.InvalidOperationException("unknown reach"),
+    };
+
+    /// <summary>Fills the pot for the first queued dish this stove can cook. Filled names that dish when the pot took it, so it can leave the queue.</summary>
+    public static (Pressed Pressed, int? Filled) Next(ICookGame game, CookQueue queue, bool isSpoilingFirst, bool isChinese) => Reach(game, isChinese) switch
+    {
+        Reached.Open open => Next(game, open.Kitchen, open.Stove, queue, isSpoilingFirst, isChinese),
+        Reached.Refused refused => (refused.Pressed, null),
+        _ => throw new System.InvalidOperationException("unknown reach"),
+    };
+
+    /// <summary>
+    /// Fills every free fuel slot with the kinds of fuel the stove already burns, from the bag and home storage. Fuel
+    /// may go in while the stove cooks.
+    /// </summary>
+    public static Pressed TopUp(ICookGame game, bool isChinese) => game.Read() switch
+    {
+        CookRead.Ready { Kitchen: { Stove: { } stove } } => TopUp(game, stove, isChinese),
+        CookRead.Ready => No(Texts.NoStove, isChinese),
+        CookRead.NotReady notReady => new Pressed(false, Texts.NotReady.Say(isChinese, notReady.Reason)),
+        _ => No(Texts.NoGame, isChinese),
     };
 
     /// <summary>
@@ -60,7 +89,42 @@ public static class CookRun
             : new Pressed(moved > 0, Texts.MovedSome.Say(isChinese, moved, takes.Count));
     }
 
-    private static Pressed Season(ICookGame game, Kitchen kitchen, Stove stove, int itemId, bool isChinese)
+    private static (Pressed, int?) Next(ICookGame game, Kitchen kitchen, Stove stove, CookQueue queue, bool isSpoilingFirst, bool isChinese)
+    {
+        var queued = queue.For(stove);
+
+        if (queued.Count == 0) return (No(Texts.NothingQueued, isChinese), null);
+
+        var pressed = Fill(game, kitchen, stove, queued[0], isSpoilingFirst, isChinese);
+
+        return (pressed, pressed.IsDone ? queued[0] : null);
+    }
+
+    private static Pressed TopUp(ICookGame game, Stove stove, bool isChinese)
+    {
+        if (stove.Fuel is not { } fuel) return No(Texts.NoFuelStove, isChinese);
+        if (fuel.Free == 0) return No(Texts.FuelFull, isChinese);
+        if (fuel.Preferred.Count == 0) return No(Texts.FuelByHand, isChinese);
+        if (fuel.Have == 0) return No(Texts.NoFuelLeft, isChinese);
+
+        var added = 0;
+
+        foreach (var stack in fuel.Stock)
+        {
+            for (var unit = 0; unit < stack.Count && added < fuel.Free; unit++)
+            {
+                if (!game.AddFuel(stove.FurnitureId, stack.InstanceId)) return Topped(added, isChinese);
+
+                added++;
+            }
+        }
+
+        return Topped(added, isChinese);
+    }
+
+    private static Pressed Topped(int added, bool isChinese) => added == 0 ? No(Texts.FuelRefused, isChinese) : new Pressed(true, Texts.FuelAdded.Say(isChinese, added));
+
+    private static Pressed Add(ICookGame game, Kitchen kitchen, Stove stove, int itemId, bool isChinese)
     {
         if (stove.Room == 0) return No(Texts.PotFull, isChinese);
 

@@ -28,8 +28,23 @@ public abstract record PageCommand
     /// <summary>Fill the open stove's empty pot with what the recipe needs.</summary>
     public sealed record Fill(int RecipeId) : PageCommand;
 
-    /// <summary>Add one fresh unit of a seasoning to the open stove's pot.</summary>
-    public sealed record Season(int ItemId) : PageCommand;
+    /// <summary>Add one fresh stack of a food (a seasoning, or a pantry pick) to the open stove's pot.</summary>
+    public sealed record Add(int ItemId) : PageCommand;
+
+    /// <summary>Fill the open stove's empty pot for the dish it cooked last.</summary>
+    public sealed record Repeat : PageCommand;
+
+    /// <summary>Put a dish at the end of the base's cooking queue.</summary>
+    public sealed record Queue(int RecipeId) : PageCommand;
+
+    /// <summary>Take a dish out of the cooking queue.</summary>
+    public sealed record Unqueue(int RecipeId) : PageCommand;
+
+    /// <summary>Fill the open stove's empty pot for the first queued dish it can cook.</summary>
+    public sealed record Next : PageCommand;
+
+    /// <summary>Fill the open stove's free fuel slots from the bag and storage.</summary>
+    public sealed record TopUp : PageCommand;
 
     /// <summary>Swap the spoiled units of an item in the open stove's pot for fresh ones.</summary>
     public sealed record Swap(int ItemId) : PageCommand;
@@ -60,7 +75,12 @@ public abstract record PageCommand
             ("noscript", 1) => new NoScript(),
             ("focus", 2) when IsSwitch(parts[1]) => new Focus(parts[1] == "1"),
             ("fill", 2) when TryId(parts[1], out var recipeId) => new Fill(recipeId),
-            ("season", 2) when TryId(parts[1], out var itemId) => new Season(itemId),
+            ("add" or "season", 2) when TryId(parts[1], out var itemId) => new Add(itemId),
+            ("repeat", 1) => new Repeat(),
+            ("queue", 2) when TryId(parts[1], out var recipeId) => new Queue(recipeId),
+            ("unqueue", 2) when TryId(parts[1], out var recipeId) => new Unqueue(recipeId),
+            ("next", 1) => new Next(),
+            ("topup", 1) => new TopUp(),
             ("swap", 2) when TryId(parts[1], out var itemId) => new Swap(itemId),
             ("spoilfirst", 2) when IsSwitch(parts[1]) => new SpoilingFirst(parts[1] == "1"),
             ("odds", 2) when IsSwitch(parts[1]) => new ShowOdds(parts[1] == "1"),

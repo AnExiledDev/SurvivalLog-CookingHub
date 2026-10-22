@@ -43,6 +43,19 @@ public static class Texts
     public static readonly Phrase OddsOn = new("Odds now show on the cooking screen.", "烹饪界面现在会显示品质概率。");
     public static readonly Phrase OddsOff = new("Odds no longer show on the cooking screen.", "烹饪界面不再显示品质概率。");
 
+    public static readonly Phrase NoFuelStove = new("This stove does not burn fuel.", "这个灶具不用燃料。");
+    public static readonly Phrase FuelFull = new("The fuel slots are full.", "燃料格已满。");
+    public static readonly Phrase FuelByHand = new("Put one fuel in by hand first; topping up adds more of the same.", "请先手动放入一份燃料，补充时会加入同样的燃料。");
+    public static readonly Phrase NoFuelLeft = new("No more of this stove's fuel in your bag or storage.", "背包和储物中没有这个灶具用的燃料了。");
+    public static readonly Phrase FuelAdded = new("Added {0} fuel.", "已加入 {0} 份燃料。");
+    public static readonly Phrase FuelRefused = new("The game refused the fuel.", "游戏拒绝了这份燃料。");
+    public static readonly Phrase NothingQueued = new("Nothing queued for this stove.", "没有为这个灶具排队的菜。");
+    public static readonly Phrase Queued = new("Queued {0}.", "已将{0}加入队列。");
+    public static readonly Phrase QueueFull = new("The queue is full.", "队列已满。");
+    public static readonly Phrase Unqueued = new("Removed {0} from the queue.", "已将{0}移出队列。");
+    public static readonly Phrase NoLast = new("Nothing has been cooked on this stove since the game started.", "本次启动游戏后，这个灶具还没有做过菜。");
+    public static readonly Phrase Starting = new("The pot is filled for {0}. Starting it.", "已为{0}放好食材，正在开始烹饪。");
+
     public static readonly Phrase Bag = new("Bag", "背包");
     public static readonly Phrase Storage = new("Storage", "储物");
     public static readonly Phrase Pot = new("Pot", "锅中");
@@ -96,18 +109,43 @@ public static class Texts
         ("tGood", new("Good", "优良")),
         ("tNormal", new("Average", "普通")),
         ("tFail", new("Failed", "失败")),
-        ("why", new("Why", "原因")),
-        ("rollFloor", new("Cooking level floor (roll {0}-100)", "烹饪等级下限（掷出 {0}-100）")),
         ("partFresh", new("All ingredients fresh", "食材全部新鲜")),
         ("partRotten", new("Spoiled ingredient", "有变质食材")),
         ("partSeason1", new("1 seasoning", "1 种调味料")),
         ("partSeasonN", new("{0} seasonings", "{0} 种调味料")),
         ("partExact", new("Exact recipe", "精确配方")),
         ("partStove", new("Stove quality", "灶具品质")),
-        ("lowest", new("Worst roll lands on", "最差结果")),
         ("nSeason", new("Add {0}", "加入{0}")),
         ("nSwap", new("Swap the spoiled {0} for fresh", "把变质的{0}换成新鲜的")),
         ("nGain", new("about +{0} Perfect", "完美约 +{0}")),
         ("hub", new("Cooking Hub", "烹饪中心")),
+        ("tabBook", new("Recipe Book", "菜谱")),
+        ("tabNow", new("Cook now", "现在能做")),
+        ("tabQueue", new("Queued", "队列")),
+        ("searchFood", new("Search dishes or food", "搜索菜品或食材")),
+        ("fCanLoad", new("Can load", "可以放入")),
+        ("fNew", new("New", "新菜")),
+        ("missing", new("Missing: {0}", "缺少：{0}")),
+        ("load", new("Load", "放入")),
+        ("queue", new("Queue", "排队")),
+        ("unqueue", new("Remove", "移除")),
+        ("loadNext", new("Load next", "放入下一道")),
+        ("waiting", new("waiting", "等待中")),
+        ("spoiledWord", new("spoiled", "已变质")),
+        ("nowNote", new("From your bag and every storage. Food that spoils soonest first.", "来自背包和所有储物。最快变质的食材排在前面。")),
+        ("nowNone", new("Nothing this stove can make from your food right now.", "现在你的食材做不了这个灶具能做的菜。")),
+        ("pantryNote", new("Click a food to put one in this pot from where it is stored.", "点击食材，从存放处放一份到锅里。")),
+        ("queueNote", new("Queued from the Cooking Hub window. When the pot is empty, Load next fills the first one.", "在烹饪中心窗口中排队。锅空时，「放入下一道」会放入第一道。")),
+        ("queueNone", new("Nothing queued for this stove. Queue dishes from the Cooking Hub window.", "没有为这个灶具排队的菜。可以在烹饪中心窗口中排队。")),
+        ("queueKNote", new("Queued dishes wait for a stove: open one and its Queued tab fills them one at a time.", "排队的菜会等待灶具：打开灶具后，在其「队列」标签中逐道放入。")),
+        ("queueKNone", new("Nothing queued. Press Queue on a dish to add it.", "队列为空。点击菜品的「排队」即可加入。")),
+        ("speed", new("x{0} speed", "{0} 倍速度")),
+        ("quality", new("+{0} quality", "品质 +{0}")),
+        ("cookTime", new("Cook time {0}", "烹饪时间 {0}")),
+        ("hm", new("{0}h {1}m", "{0}小时{1}分")),
+        ("mins", new("{0}m", "{0}分")),
+        ("repeat", new("Repeat last: {0}", "重做上一道：{0}")),
+        ("topUp", new("Top up from storage ({0})", "从储物补充（{0}）")),
+        ("whyLevel", new("Cooking level {0}: rolls {1}-100", "烹饪等级 {0}：掷点 {1}-100")),
     };
 }

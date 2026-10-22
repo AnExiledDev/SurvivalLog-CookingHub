@@ -11,6 +11,15 @@ namespace CookingHub.Core;
 public sealed record ViewSettings(string Key, bool IsSpoilingFirst, bool IsShowingOdds);
 
 /// <summary>
+/// What the session keeps for the open stove: the dish it last started (null when none this game start), the queued
+/// dishes it can cook, and the start token, which counts up once per Repeat last that should also start the stove (0 for none).
+/// </summary>
+public sealed record StationExtras(int? Last, IReadOnlyList<int> Queued, int Start)
+{
+    public static readonly StationExtras None = new(null, new List<int>(), 0);
+}
+
+/// <summary>
 /// The JSON the window draws: the cooking level, the open stove, every dish the player can see with what it needs, and
 /// the pantry. Names and icons live in the catalog, sent once (CatalogView).
 /// </summary>
@@ -23,7 +32,7 @@ public static class CookView
         WriteSettings(json, settings);
     });
 
-    public static string Ready(Kitchen kitchen, ViewSettings settings) => Json.Object(json =>
+    public static string Ready(Kitchen kitchen, ViewSettings settings, CookQueue? queue = null) => Json.Object(json =>
     {
         json.WriteBoolean("ready", true);
         json.WriteNumber("level", kitchen.Level);
@@ -40,26 +49,46 @@ public static class CookView
 
         json.WriteEndArray();
         json.WriteNumber("spoiling", Pantry.SpoilingSoon(kitchen, Finder.SpoilingHours));
+        WriteIds(json, "queue", (queue ?? CookQueue.Empty).Ids);
+        json.WriteBoolean("queueFull", (queue ?? CookQueue.Empty).IsFull);
         WriteSettings(json, settings);
     });
 
     /// <summary>
-    /// What page.js draws on the game's own cooking screen: the odds of each forecast line, keyed by recipe id so the page
-    /// can check it is drawing on the lines C# read, and the nudges. Recipe names are never sent, so a recipe the player has
-    /// not learned stays hidden.
+    /// What page.js draws on the game's own cooking screen: the stove line, each recipe book row's food and odds, the
+    /// pantry, the queue and Repeat last, and the odds of each forecast line, keyed by recipe id so the page can check it
+    /// is drawing on the lines C# read, with the nudges. Recipe names are never sent, so a recipe the player has not
+    /// learned stays hidden; the book lists only recipes the game itself shows.
     /// </summary>
-    public static string Overlay(Kitchen kitchen, Stove stove, bool isShowingOdds) => Json.Object(json =>
+    public static string Overlay(Kitchen kitchen, Stove stove, bool isShowingOdds, StationExtras? extras = null) => Json.Object(json =>
     {
         var advice = Advice.For(kitchen, stove);
+        var station = extras ?? StationExtras.None;
 
-        json.WriteBoolean("show", isShowingOdds);
+        json.WriteBoolean("show", true);
+        json.WriteBoolean("odds", isShowingOdds);
         json.WriteBoolean("cooking", stove.IsCooking);
         json.WriteBoolean("potEmpty", stove.PotCount == 0);
-        json.WriteStartArray("ids");
+        json.WriteNumber("level", kitchen.Level);
+        json.WriteNumber("floor", kitchen.Book.Rules.Floor(kitchen.Level));
+        WriteStation(json, kitchen, stove);
+        json.WriteStartArray("book");
 
-        foreach (var line in advice.Lines) json.WriteNumberValue(line.RecipeId);
+        foreach (var dish in Finder.ForStove(kitchen, stove)) WriteBookRow(json, kitchen, stove, dish);
 
         json.WriteEndArray();
+        json.WriteStartArray("pantry");
+
+        foreach (var shelf in Pantry.For(kitchen)) WriteShelf(json, shelf);
+
+        json.WriteEndArray();
+
+        if (station.Last is { } last) json.WriteNumber("last", last);
+        else json.WriteNull("last");
+
+        WriteIds(json, "queue", station.Queued);
+        json.WriteNumber("start", station.Start);
+        WriteIds(json, "ids", advice.Lines.Select(line => line.RecipeId));
         json.WriteStartArray("lines");
 
         foreach (var line in advice.Lines) WriteOdds(json, line.Odds);
@@ -107,6 +136,101 @@ public static class CookView
         json.WriteEndArray();
         json.WriteBoolean("takesAll", stove.Allowed == null);
         json.WriteEndObject();
+    }
+
+    /// <summary>
+    /// The open stove's name, speed and quality bonus, how long the forecast dish takes on it, and its fuel: free slots,
+    /// total slots, how many units of its fuel the player has, and whether it has burned any yet (known), since a top up
+    /// only adds kinds it already burns.
+    /// </summary>
+    private static void WriteStation(Utf8JsonWriter json, Kitchen kitchen, Stove stove)
+    {
+        var main = stove.Forecasts.FirstOrDefault(forecast => forecast.RecipeId != Recipe.DarkFood);
+        var recipe = main != null && kitchen.Book.Recipes.TryGetValue(main.RecipeId, out var found) ? found : null;
+
+        json.WriteStartObject("stove");
+        json.WriteString("name", stove.Name);
+        json.WriteNumber("speed", Math.Round(stove.SpeedRate, 2));
+        json.WriteNumber("bonus", stove.QualityBonus);
+        json.WriteBoolean("hotPot", stove.IsHotPot);
+
+        if (recipe != null) json.WriteNumber("cookSecs", Math.Round(stove.CookSeconds(recipe)));
+        else json.WriteNull("cookSecs");
+
+        if (stove.Fuel is { } fuel)
+        {
+            json.WriteStartObject("fuel");
+            json.WriteNumber("free", fuel.Free);
+            json.WriteNumber("slots", fuel.Slots);
+            json.WriteNumber("have", fuel.Have);
+            json.WriteBoolean("known", fuel.Preferred.Count > 0);
+            json.WriteEndObject();
+        }
+        else
+        {
+            json.WriteNull("fuel");
+        }
+
+        json.WriteEndObject();
+    }
+
+    /// <summary>
+    /// One recipe book row: whether the player's food covers it, where that food is, what is missing, the soonest any
+    /// of it spoils, and the odds of cooking it fresh on this stove (null while locked).
+    /// </summary>
+    private static void WriteBookRow(Utf8JsonWriter json, Kitchen kitchen, Stove stove, Dish dish)
+    {
+        var sources = Finder.Sources(kitchen, dish);
+        var soonest = sources.Select(stack => stack.HoursLeft).Where(hours => hours != null).Min();
+        var odds = dish.State == Readiness.Locked ? null : Finder.PlainOdds(kitchen, dish.Recipe, stove.QualityBonus);
+
+        json.WriteStartObject();
+        json.WriteNumber("id", dish.Recipe.Id);
+        json.WriteString("state", StateName(dish.State));
+        json.WriteBoolean("isNew", dish.IsNew);
+
+        if (odds != null) WriteChances(json, odds);
+        else json.WriteNull("chances");
+
+        json.WriteStartArray("places");
+
+        foreach (var place in sources.Select(stack => stack.Place).Distinct().OrderBy(place => place, StringComparer.Ordinal)) json.WriteStringValue(place);
+
+        json.WriteEndArray();
+        json.WriteStartArray("missing");
+
+        foreach (var need in dish.Needs.Where(need => need.Missing > 0))
+        {
+            json.WriteStartObject();
+            json.WriteNumber("id", need.Id);
+            json.WriteBoolean("type", need.IsType);
+            json.WriteEndObject();
+        }
+
+        json.WriteEndArray();
+
+        if (soonest is { } hours) json.WriteNumber("hours", Math.Round(Math.Max(0, hours), 1));
+        else json.WriteNull("hours");
+
+        json.WriteEndObject();
+    }
+
+    private static void WriteIds(Utf8JsonWriter json, string name, IEnumerable<int> ids)
+    {
+        json.WriteStartArray(name);
+
+        foreach (var id in ids) json.WriteNumberValue(id);
+
+        json.WriteEndArray();
+    }
+
+    private static void WriteChances(Utf8JsonWriter json, Odds odds)
+    {
+        json.WriteStartArray("chances");
+
+        foreach (var chance in odds.Chances) json.WriteNumberValue(Percent(chance));
+
+        json.WriteEndArray();
     }
 
     private static void WriteDish(Utf8JsonWriter json, Dish dish)
@@ -168,11 +292,7 @@ public static class CookView
 
         json.WriteStartObject();
         json.WriteNumber("floor", odds.Floor);
-        json.WriteStartArray("chances");
-
-        foreach (var chance in odds.Chances) json.WriteNumberValue(Percent(chance));
-
-        json.WriteEndArray();
+        WriteChances(json, odds);
         json.WriteStartArray("parts");
 
         foreach (var part in odds.Parts)

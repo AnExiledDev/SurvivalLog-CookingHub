@@ -37,6 +37,8 @@ internal sealed class FakeGame : ICookGame
     public const long Bag = 500;
     public const long Chest = 501;
     public const long Workbench = 600;
+    public const long StoveId = 700;
+    public const int Firewood = 40;
 
     public static readonly IReadOnlyList<int> Map = new[] { 0, 30, 60, 90 };
 
@@ -50,6 +52,7 @@ internal sealed class FakeGame : ICookGame
             [Pepper] = new(Pepper, "Pepper", null, Seasoning, 0, true),
             [Bowl] = new(Bowl, "Rice Bowl", "Res/Item/bowl.png", 0, 1, false),
             [FancyBowl] = new(FancyBowl, "Fancy Bowl", "Res/Item/fancy.png", 0, 1, false),
+            [Firewood] = new(Firewood, "Firewood", null, 0, 0, false),
         },
         new Dictionary<int, Recipe>
         {
@@ -85,6 +88,22 @@ internal sealed class FakeGame : ICookGame
 
     public IReadOnlyCollection<int>? Allowed { get; set; }
 
+    /// <summary>False for a cooker with no fire, like a juicer.</summary>
+    public bool BurnsFuel { get; set; } = true;
+
+    public int FuelSlots { get; set; } = 4;
+
+    public int FuelUsed { get; set; } = 1;
+
+    /// <summary>The fuel kinds the stove burns now; empty means none was ever put in.</summary>
+    public List<int> FuelPreferred { get; } = new() { Firewood };
+
+    /// <summary>The player's fuel of the preferred kinds, in the bag and the chest.</summary>
+    public List<Stack> FuelStock { get; } = new();
+
+    /// <summary>Fuel stacks the game refuses to burn.</summary>
+    public HashSet<long> FuelStuck { get; } = new();
+
     public CookRead? Override { get; set; }
 
     /// <summary>Stacks the game refuses to move.</summary>
@@ -97,7 +116,10 @@ internal sealed class FakeGame : ICookGame
         new(instanceId, itemId, count, owner, owner == Bag ? "Bag" : "Chest", hours, isSpoiled);
 
     public Kitchen Kitchen() =>
-        new(Book, Level, Cooked, CraftUnlocked, Stock.ToList(), IsStoveOpen ? new Stove(1, Workbench, Bag, MaxFood, false, IsCooking, 0, Allowed, Pot.ToList(), Forecasts.ToList()) : null);
+        new(Book, Level, Cooked, CraftUnlocked, Stock.ToList(), IsStoveOpen ? OpenStove() : null);
+
+    private Stove OpenStove() =>
+        new(StoveId, Workbench, Bag, MaxFood, false, IsCooking, 0, Allowed, Pot.ToList(), Forecasts.ToList(), "Stove", 1f, 0, BurnsFuel ? new Fuel(FuelSlots, FuelUsed, FuelPreferred.ToList(), FuelStock.ToList()) : null);
 
     public CookRead Read() => Override ?? new CookRead.Ready(Kitchen());
 
@@ -114,6 +136,22 @@ internal sealed class FakeGame : ICookGame
 
         if (toOwnerId == Workbench) Pot.Add(stack with { OwnerId = Workbench, Place = "Pot" });
         else Stock.Add(stack with { OwnerId = toOwnerId, Place = "Bag" });
+
+        return true;
+    }
+
+    /// <summary>Burns one unit of the stack into a new fuel slot, the way Furniture.OnCookingFuelAdd does.</summary>
+    public bool AddFuel(long furnitureId, long instanceId)
+    {
+        var stack = FuelStock.FirstOrDefault(s => s.InstanceId == instanceId);
+
+        if (furnitureId != StoveId || stack == null || FuelStuck.Contains(instanceId) || FuelUsed >= FuelSlots) return false;
+
+        FuelStock.Remove(stack);
+
+        if (stack.Count > 1) FuelStock.Add(stack with { Count = stack.Count - 1 });
+
+        FuelUsed++;
 
         return true;
     }
