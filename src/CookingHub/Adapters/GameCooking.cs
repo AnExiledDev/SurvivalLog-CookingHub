@@ -15,7 +15,7 @@ namespace CookingHub.Adapters;
 /// through the handler the panel's quick move and recipe click send their events to. Each call fails soft: an exception
 /// is logged once per kind of call and answered as a refusal.
 /// </summary>
-internal sealed class GameCooking : ICookGame
+internal sealed partial class GameCooking : ICookGame
 {
     private const int FoodCategory = 1;
     private const int BurnsFuelType = 1;

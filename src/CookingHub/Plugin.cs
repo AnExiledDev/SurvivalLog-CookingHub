@@ -13,7 +13,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.2.0";
+    private const string Version = "0.3.0";
 
     public override void Load()
     {
@@ -28,14 +28,19 @@ public sealed class Plugin : BasePlugin
         var isShowingOdds = Config.Bind("General", "ShowOdds", true,
             "When true, the game's cooking screen shows the chance of each quality under every dish it forecasts, with the reasons and what would raise it.\n" +
             "设为 true 时，游戏的烹饪界面会在每道预测菜品下方显示各品质的概率、原因，以及怎样提高。");
+        var isPuttingDishesAway = Config.Bind("General", "PutDishesAway", false,
+            "When true, a finished dish is moved out of the stove into the home storage whose tags want it, the way Storage Hub puts items away. A dish no storage is tagged for, or that a storage already holding it has no room for, stays in the stove.\n" +
+            "设为 true 时，做好的菜会从灶具移到标签需要它的家中储物里，方式与 Storage Hub 收纳物品相同。没有储物标签收它，或已有这道菜的储物放不下时，菜会留在灶具里。");
         var isLoggingToFile = Config.Bind("Diagnostics", "LogToFile", false, new BepInEx.Configuration.ConfigDescription(
             "When true, what Cooking Hub does is also written to BepInEx\\cooking-hub.log, which is kept between game starts. Turn it on when reporting a problem.\n" +
             "设为 true 时，Cooking Hub 的操作也会写入 BepInEx\\cooking-hub.log，该文件在重启游戏后保留。报告问题时再打开。", null, "ModManager.Advanced"));
         var log = new CookLog(Log, Path.Combine(Paths.BepInExRootPath, "cooking-hub.log"));
         var harmony = new Harmony(Guid);
         var queueFile = Path.Combine(Paths.ConfigPath, "CookingHub.queue.txt");
+        var game = new GameCooking(log.Write);
         var session = new CookSession(
-            new GameCooking(log.Write),
+            game,
+            game,
             new WebPage(log.Write),
             isOn => isSpoilingFirst.Value = isOn,
             isOn => isShowingOdds.Value = isOn,
@@ -50,9 +55,9 @@ public sealed class Plugin : BasePlugin
 
         OptionalLive.Watch(() =>
         {
-            session.UseSettings(panelKey.Value, isSpoilingFirst.Value, isShowingOdds.Value);
-            log.Write($"key {panelKey.Value}, spoiling first {isSpoilingFirst.Value}, odds {isShowingOdds.Value}");
-        }, panelKey, isSpoilingFirst, isShowingOdds);
+            session.UseSettings(panelKey.Value, isSpoilingFirst.Value, isShowingOdds.Value, isPuttingDishesAway.Value);
+            log.Write($"key {panelKey.Value}, spoiling first {isSpoilingFirst.Value}, odds {isShowingOdds.Value}, put dishes away {isPuttingDishesAway.Value}");
+        }, panelKey, isSpoilingFirst, isShowingOdds, isPuttingDishesAway);
 
         CookTicker.Session = session;
         CookTicker.Log = log.Write;

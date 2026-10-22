@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- New setting `PutDishesAway` (off by default): a finished dish moves out of the stove into the home storage whose tags want it, ranked the way Storage Hub ranks put-away. A storage already holding that dish is the fallback. A dish nothing takes stays in the stove, and a line says so once.
+
 ## 0.2.0
 
 - The stove's own cooking screen (stove, juicer, microwave, oven, coffee machine) gets tabs: Recipe Book, Cook now, Pantry and Queued.

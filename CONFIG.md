@@ -9,6 +9,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 | `PanelKey` | `K` | Opens and closes the Cooking Hub window. `None` turns the key off; the pot button in the tool column on the left of the screen still opens it. |
 | `FillSpoilingFirst` | `true` | Filling a pot from the window uses the food closest to spoiling first. When `false`, it uses the freshest food first. Also in the window's Settings tab. |
 | `ShowOdds` | `true` | The game's cooking screen shows the chance of each quality under every dish it forecasts, with the reasons and what would raise it. Also in the window's Settings tab. |
+| `PutDishesAway` | `false` | A finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away; a storage already holding that dish is the fallback. A dish no storage takes stays in the stove. |
 
 ## Diagnostics
 

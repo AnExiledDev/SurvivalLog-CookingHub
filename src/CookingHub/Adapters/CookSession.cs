@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CookingHub.Core;
 using UnityEngine;
 
@@ -15,8 +16,10 @@ internal sealed class CookSession
     private const float StoveRefreshSeconds = 0.5f;
     private const float ClosedRefreshSeconds = 5f;
     private const float StartWindowSeconds = 4f;
+    private const float DishSweepSeconds = 2f;
 
     private readonly ICookGame _game;
+    private readonly IDishGame _dishes;
     private readonly WebPage _page;
     private readonly WebKeyboard _keyboard = new();
     private readonly Action<bool> _saveSpoilingFirst;
@@ -27,6 +30,7 @@ internal sealed class CookSession
     private KeyCode _panelKey;
     private bool _isSpoilingFirst = true;
     private bool _isShowingOdds = true;
+    private bool _isPuttingDishesAway;
 
     private bool _isOpen;
     private string _shownView = "";
@@ -41,10 +45,13 @@ internal sealed class CookSession
     private Cookbook? _book;
     private int _startToken;
     private float _startUntil;
+    private float _nextDishSweepAt;
+    private readonly HashSet<long> _toldStays = new();
 
-    public CookSession(ICookGame game, WebPage page, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
+    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
     {
         _game = game;
+        _dishes = dishes;
         _page = page;
         _saveSpoilingFirst = saveSpoilingFirst;
         _saveShowOdds = saveShowOdds;
@@ -56,11 +63,12 @@ internal sealed class CookSession
     private static bool IsChinese => GameLanguage.IsChinese();
 
     /// <summary>Called on the main thread at start and after each settings change; the page hears them at the next refresh.</summary>
-    public void UseSettings(KeyCode panelKey, bool isSpoilingFirst, bool isShowingOdds)
+    public void UseSettings(KeyCode panelKey, bool isSpoilingFirst, bool isShowingOdds, bool isPuttingDishesAway)
     {
         _panelKey = panelKey;
         _isSpoilingFirst = isSpoilingFirst;
         _isShowingOdds = isShowingOdds;
+        _isPuttingDishesAway = isPuttingDishesAway;
         ForgetSent();
     }
 
@@ -86,7 +94,27 @@ internal sealed class CookSession
             return;
         }
 
+        if (_isPuttingDishesAway && now >= _nextDishSweepAt) PutDishesAway(now);
         if (now >= _nextRefreshAt) Refresh(now);
+    }
+
+    /// <summary>
+    /// Every few seconds, moves each finished dish out of its stove into the storage its tags want. Where each went is
+    /// shown; a dish no storage takes is retried later but told about only once.
+    /// </summary>
+    private void PutDishesAway(float now)
+    {
+        _nextDishSweepAt = now + DishSweepSeconds;
+
+        foreach (var stored in DishStore.PutAway(_dishes))
+        {
+            if (stored is Stored.Stays && !_toldStays.Add(stored.Dish.InstanceId)) continue;
+
+            var line = DishStore.Describe(stored, IsChinese);
+
+            _log(line);
+            _page.Status(line);
+        }
     }
 
     /// <summary>One command that throws must not cost the rest of the frame its commands or the key checks.</summary>
