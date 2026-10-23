@@ -76,9 +76,12 @@ public static class Finder
     public static IReadOnlyList<(int Id, int Want)> Wants(Recipe recipe) =>
         (recipe.IsExact ? recipe.Specific : recipe.Tags).GroupBy(id => id).Select(group => (group.Key, group.Count())).ToList();
 
-    /// <summary>Recipes the game would list at the player's level: not dark food, and not one the tables hide until a later level.</summary>
+    /// <summary>
+    /// Recipes the game would list: not dark food, and either one the player already knows or one the tables show at their level
+    /// (Reducer_Web_Cooking.IsRecipeSelfKnown).
+    /// </summary>
     private static IEnumerable<Recipe> Shown(Kitchen kitchen) =>
-        kitchen.Book.Recipes.Values.Where(recipe => recipe.Id != Recipe.DarkFood && recipe.ShowLevel >= 0 && recipe.ShowLevel <= kitchen.Level && (recipe.IsExact || recipe.Tags.Count > 0));
+        kitchen.Book.Recipes.Values.Where(recipe => recipe.Id != Recipe.DarkFood && (kitchen.Cooked.Contains(recipe.Id) || recipe.ShowLevel >= 0 && recipe.ShowLevel <= kitchen.Level) && (recipe.IsExact || recipe.Tags.Count > 0));
 
     private static Dish Check(Kitchen kitchen, IReadOnlyList<Stack> fresh, Recipe recipe, bool varies)
     {

@@ -79,6 +79,17 @@ public class FinderTests
         Assert.DoesNotContain(Recipe.DarkFood, ids);
     }
 
+    // Family Bucket shows from level 5, but a player who learned it earlier sees it in the game's own book.
+    [Fact]
+    public void A_recipe_the_player_already_knows_is_listed_before_its_show_level()
+    {
+        var game = Stocked();
+
+        game.Cooked.Add(Secret);
+
+        Assert.Contains(Secret, Finder.For(game.Kitchen()).Select(dish => dish.Recipe.Id));
+    }
+
     [Fact]
     public void A_dish_that_uses_up_food_spoiling_soon_comes_before_one_that_does_not()
     {

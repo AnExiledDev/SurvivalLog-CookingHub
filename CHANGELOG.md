@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- Recipes you learned before reaching the cooking level that normally shows them (Family Bucket, for one) now get their stats, odds and missing items in the Recipe Book and can show up in Cook now.
+
 ## 0.5.1
 
 - Recipe Book rows show what the dish restores, one icon per stat, as Cook now cards do.
