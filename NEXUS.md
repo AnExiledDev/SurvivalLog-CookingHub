@@ -6,7 +6,7 @@ Know what you can cook and how good it will turn out before you light the stove.
 
 [size=5]Main features[/size]
 [list]
-[*][b]A better cooking screen[/b]: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Both can be sorted by Satiety, Stamina, Morale, Health, Vitality or Quality. Pantry puts one of any food in the pot with a click. Queued fills the dishes you queued in the window, one at a time.[/*]
+[*][b]A better cooking screen[/b]: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Both can be sorted by Satiety, Stamina, Morale, Health, Vitality or Quality. Cook now, Pantry and Queued cards, and the pot cards of known dishes, show what each dish or food restores, one icon per stat. Hovering a card shows the cooking screen's tooltip, Info Pack's details included. Pantry puts one of any food in the pot with a click. Queued fills the dishes you queued in the window, one at a time.[/*]
 [*][b]Load from storage[/b]: a recipe the game calls short because it only counts your bag gets a Load button when your storages cover it. Food already in the pot goes back where it came from first. Once your cooking level lets one pot cook several dishes, Load adds the dish beside what is there when it fits.[/*]
 [*][b]Repeat last[/b]: refills an empty stove with the dish it last started and starts it again.[/*]
 [*][b]Top up from storage[/b]: fills the free fuel slots with the fuel the stove already burns, from your bag and storages. Put the first fuel in by hand so the mod knows which kind.[/*]
@@ -65,7 +65,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CookingHu
 
 [size=5]主要功能[/size]
 [list]
-[*][b]更好的烹饪界面[/b]：游戏自己的灶具界面多出标签页。「菜谱」加入搜索框和筛选（全部、可以放入、新菜、未解锁），并显示每道菜的食材在哪里或缺少什么、品质概率条和完美概率。「现在能做」列出这个灶具用你所有食材能做的菜，最快变质的排在前面。两者都可按饱腹、精力、心态、健康、生命或品质排序。「食材库存」点击任意食材即可放一份到锅里。「队列」逐道放入你在窗口中排队的菜。[/*]
+[*][b]更好的烹饪界面[/b]：游戏自己的灶具界面多出标签页。「菜谱」加入搜索框和筛选（全部、可以放入、新菜、未解锁），并显示每道菜的食材在哪里或缺少什么、品质概率条和完美概率。「现在能做」列出这个灶具用你所有食材能做的菜，最快变质的排在前面。两者都可按饱腹、精力、心态、健康、生命或品质排序。「现在能做」「食材库存」「队列」的卡片和锅中已知菜品的卡片会在底部用图标显示能恢复的各项数值。鼠标悬停在卡片上会显示烹饪界面自带的提示，包括 Info Pack 的详情。「食材库存」点击任意食材即可放一份到锅里。「队列」逐道放入你在窗口中排队的菜。[/*]
 [*][b]从储物放入[/b]：游戏只计算背包，因此会把储物里有食材的菜显示为不足；只要储物够用，这些菜会出现「放入」按钮。锅里已有的食材会先放回原处。烹饪等级达到一锅可做多道菜后，只要放得下，「放入」会把新菜加在锅里已有的食材旁边。[/*]
 [*][b]重做上一道[/b]：锅空且没在烹饪时，把这个灶具上次做的菜重新放入并开始烹饪。[/*]
 [*][b]从储物补充燃料[/b]：用这个灶具正在烧的燃料，从背包和储物中填满空的燃料格。第一份燃料请手动放入，模组才知道用哪种。[/*]

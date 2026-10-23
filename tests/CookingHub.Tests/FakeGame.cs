@@ -45,7 +45,7 @@ internal sealed class FakeGame : ICookGame
     public static readonly Cookbook Book = new(
         new Dictionary<int, Item>
         {
-            [Rice] = new(Rice, "Rice", "Res/Item/rice.png", Grain, 5, true),
+            [Rice] = new(Rice, "Rice", "Res/Item/rice.png", Grain, 5, true, new[] { 6, 0, 1, 0, 0 }),
             [Wheat] = new(Wheat, "Wheat", null, Grain, 5, true),
             [Pork] = new(Pork, "Pork", null, Meat, 2, true),
             [Salt] = new(Salt, "Salt", null, Seasoning, 0, true),

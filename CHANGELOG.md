@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Cook now, Pantry and Queued cards show what the dish or food restores at the bottom, one icon per stat. Pot cards for known dishes show it too, also with the odds turned off.
+- Hovering a Cook now, Pantry or Queued card shows the cooking screen's own tooltip, so Info Pack's item details appear there as they do in Recipe Book.
+
 ## 0.4.0
 
 - Icons show again on the cooking screen's Cook now, Pantry and Queued tabs.

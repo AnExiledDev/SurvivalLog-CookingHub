@@ -279,6 +279,92 @@ public class PageScriptTests
         Assert.Contains("https://game.local/Res/Item/rice.png", page.Text("cookingPage().querySelector('.ch-view').querySelectorAll('img').map(function (i) { return i.src; }).join(' ')"));
     }
 
+    private static string ViewRow(string name) =>
+        $"cookingPage().querySelector('.ch-view').querySelectorAll('.book-item').filter(function (r) {{ return r.textContent.indexOf('{name}') >= 0; }})[0]";
+
+    private const string Tooltip = "cookingPage().getElementById('recipeTooltip')";
+
+    private static string Chips(string node) =>
+        $"{node}.querySelectorAll('.ch-give').map(function (c) {{ return c.getAttribute('title') + ' ' + c.textContent + (c.querySelectorAll('svg').length ? '' : ' (no icon)'); }}).join(', ')";
+
+    [Fact]
+    public void A_cook_now_card_shows_what_the_dish_gives_at_its_foot_with_an_icon_per_stat()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+
+        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Health +2, Vitality +1", page.Text(Chips(ViewRow("Stir Fry"))));
+    }
+
+    [Fact]
+    public void Hovering_a_cook_now_card_fills_the_page_tooltip_the_way_a_book_row_does_and_leaving_hides_it()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseenter')");
+
+        Assert.Equal("block", page.Text(Tooltip + ".style.display"));
+        Assert.Equal("Stir Fry\nCan cook", page.Text(Tooltip + ".textContent"));
+
+        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseleave')");
+
+        Assert.Equal("none", page.Text(Tooltip + ".style.display"));
+    }
+
+    [Fact]
+    public void Hovering_a_pantry_card_shows_the_food_through_the_page_own_item_tooltip_and_its_stats()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Pantry"));
+        page.Run($"fire({ViewRow("Rice")}, 'mouseenter')");
+
+        Assert.Equal(Rice.ToString(), page.Text("cookingFrame.contentWindow.shownItem.configId"));
+        Assert.Equal("Rice", page.Text(Tooltip + ".textContent"));
+        Assert.Equal("Satiety +6, Stamina +1", page.Text(Chips(ViewRow("Rice"))));
+        Assert.Equal("", page.Text(Chips(ViewRow("Pork"))));
+    }
+
+    [Fact]
+    public void Changing_tabs_under_the_cursor_hides_the_tooltip_its_card_opened()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseenter')");
+        page.Click(StationTab("Pantry"));
+        page.Poll();
+
+        Assert.Equal("none", page.Text(Tooltip + ".style.display"));
+    }
+
+    [Fact]
+    public void A_known_pot_card_shows_what_its_dish_gives_even_with_odds_off_and_an_untried_one_does_not()
+    {
+        var game = Stocked();
+
+        game.Forecasts.Add(new Forecast(StirFry, true, true));
+        game.Pot.Add(S(8, Rice, owner: Workbench));
+
+        var kitchen = game.Kitchen();
+        var page = new PageScript();
+
+        page.Catalog(CatalogView.Write(Book));
+        page.OpenCooking(StirFry);
+        page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: false));
+        page.Poll();
+
+        Assert.Equal(0, Count(page, "cookingPage().querySelectorAll('.ch-odds')"));
+        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Health +2, Vitality +1", page.Text(Chips("cookingPage().querySelector('.pot-card')")));
+
+        page.Run($"forecast(cookingFrame, [{StirFry}], 'mystery')");
+        page.Poll();
+
+        Assert.Equal(0, Count(page, "cookingPage().querySelectorAll('.ch-give')"));
+    }
+
     [Fact]
     public void Load_next_shows_on_a_pot_that_already_holds_food()
     {

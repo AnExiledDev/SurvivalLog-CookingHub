@@ -14,7 +14,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.4.0";
+    private const string Version = "0.4.1";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     public override void Load()

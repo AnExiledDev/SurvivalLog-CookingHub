@@ -94,6 +94,15 @@ public static class CookView
         foreach (var line in advice.Lines) WriteOdds(json, line.Odds);
 
         json.WriteEndArray();
+        json.WriteStartArray("lineGives");
+
+        foreach (var line in advice.Lines)
+        {
+            if (kitchen.Book.Recipes.TryGetValue(line.RecipeId, out var recipe)) WriteIds(json, null, DishGives.Expected(kitchen.Book, recipe, line.Odds?.Chances));
+            else json.WriteNullValue();
+        }
+
+        json.WriteEndArray();
         json.WriteStartArray("nudges");
 
         foreach (var nudge in advice.Nudges)
@@ -216,9 +225,11 @@ public static class CookView
         json.WriteEndObject();
     }
 
-    private static void WriteIds(Utf8JsonWriter json, string name, IEnumerable<int> ids)
+    /// <summary>An array of numbers, named, or unnamed when it is a value inside another array.</summary>
+    private static void WriteIds(Utf8JsonWriter json, string? name, IEnumerable<int> ids)
     {
-        json.WriteStartArray(name);
+        if (name == null) json.WriteStartArray();
+        else json.WriteStartArray(name);
 
         foreach (var id in ids) json.WriteNumberValue(id);
 
@@ -372,6 +383,16 @@ public static class CatalogView
             json.WriteString("icon", item.Icon);
             json.WriteNumber("type", item.Type);
             json.WriteBoolean("season", item.Type == QualityRules.SeasoningType);
+
+            if (item.Gives != null)
+            {
+                json.WriteStartArray("gives");
+
+                foreach (var value in item.Gives) json.WriteNumberValue(value);
+
+                json.WriteEndArray();
+            }
+
             json.WriteEndObject();
         }
 

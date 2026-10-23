@@ -278,26 +278,40 @@ function hudPage() {
 }
 
 // The game's cooking screen (UI/Cooking/Cooking.html) with a forecast: one pot card per recipe id, and the page's
-// global State naming the same ids, as renderPredictionList leaves them.
+// global State naming the same ids, as renderPredictionList leaves them. Its one tooltip, #recipeTooltip, and its
+// global showItemTip, which writes an item's name there (Cooking.html showItemTip).
 function openCooking(recipeIds) {
   var frame = document.body.appendChild(new FakeElement('iframe'));
   var section = new FakeElement('div');
   var list = new FakeElement('div');
+  var tip = new FakeElement('div');
 
   frame.src = 'https://game.local/UI/Cooking/Cooking.html';
   frame.contentDocument = new FakeDocument();
-  frame.contentWindow = { State: {} };
+  frame.contentWindow = {
+    State: {},
+    i18nText: { recipeReady: 'Ready to cook', recipeCraftable: 'Can cook', recipeInsufficient: 'Not enough materials' },
+    showItemTip: function (item) {
+      tip.textContent = item.name;
+      tip.style.display = 'block';
+      frame.contentWindow.shownItem = item;
+    }
+  };
   section.id = 'potSection';
   list.id = 'predictionList';
+  tip.id = 'recipeTooltip';
+  tip.style.display = 'none';
   section.appendChild(list);
   frame.contentDocument.body.appendChild(section);
+  frame.contentDocument.body.appendChild(tip);
   forecast(frame, recipeIds);
 
   return frame;
 }
 
-// The cooking screen forecasting again, as it does whenever the pot changes: every card is rebuilt.
-function forecast(frame, recipeIds) {
+// The cooking screen forecasting again, as it does whenever the pot changes: every card is rebuilt. Cards are known
+// dishes unless cardClass says otherwise ('mystery' for an untried mix).
+function forecast(frame, recipeIds, cardClass) {
   var list = frame.contentDocument.getElementById('predictionList');
 
   list.textContent = '';
@@ -306,7 +320,7 @@ function forecast(frame, recipeIds) {
     var card = new FakeElement('div');
     var body = new FakeElement('div');
 
-    card.className = 'pot-card known';
+    card.className = 'pot-card ' + (cardClass || 'known');
     body.className = 'pot-bd';
     card.appendChild(body);
     list.appendChild(card);

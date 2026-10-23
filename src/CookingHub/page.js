@@ -883,6 +883,11 @@
     '.ch-stoveline b{color:var(--text-main);font-weight:600}',
     '.ch-btn2{background:rgba(251,176,52,.12);color:var(--warm-gold);border:1px solid rgba(251,176,52,.55);padding:10px;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit;white-space:nowrap}',
     '.ch-btn2:hover{background:rgba(251,176,52,.25)}',
+    '.ch-gives{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}',
+    '.ch-give{display:inline-flex;align-items:center;gap:3px;padding:0 6px 0 4px;border:1px solid;border-radius:9px;font-size:11px;font-weight:700;line-height:16px;font-variant-numeric:tabular-nums}',
+    '.ch-give svg{width:11px;height:11px;flex:none}',
+    '.ch-give.ch-gain{color:#7fd67a;background:rgba(102,187,106,.13);border-color:rgba(102,187,106,.35)}',
+    '.ch-give.ch-loss{color:#f07a76;background:rgba(239,83,80,.13);border-color:rgba(239,83,80,.35)}',
     '.ch-fuelbtn{font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;color:var(--warm-gold);background:rgba(251,176,52,.12);border:1px solid rgba(251,176,52,.45);margin-left:8px}'
   ].join('\n');
 
@@ -895,6 +900,16 @@
   var STATION_SORTS = [['none', 'sNone'], [0, 'sSatiety'], [2, 'sStamina'], [1, 'sMorale'], [3, 'sHealth'], [4, 'sVitality'], ['quality', 'sQuality']];
   // Marks everything drawn on the cooking screen, so it can all be taken off again.
   var OURS = 'ch-st';
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  // The stats a card shows, in the sort chips' order: an index into gives, its name and a 12px icon (a bowl, a bolt,
+  // a face, a cross, a heart).
+  var GIVES_SHOWN = [
+    [0, 'sSatiety', [['path', { d: 'M1 6.2h10c-.2 2.6-2.3 4.6-5 4.6S1.2 8.8 1 6.2z', fill: 'currentColor' }], ['path', { d: 'M4.4 1.2c-.7.9.7 1.5 0 2.8M7.6 1.2c-.7.9.7 1.5 0 2.8', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.1', 'stroke-linecap': 'round' }]]],
+    [2, 'sStamina', [['path', { d: 'M7.2.6 2 7h3.3l-.6 4.4L10 4.9H6.6z', fill: 'currentColor' }]]],
+    [1, 'sMorale', [['circle', { cx: '6', cy: '6', r: '4.9', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.2' }], ['circle', { cx: '4.3', cy: '4.9', r: '.85', fill: 'currentColor' }], ['circle', { cx: '7.7', cy: '4.9', r: '.85', fill: 'currentColor' }], ['path', { d: 'M3.7 7.1c1.2 1.6 3.4 1.6 4.6 0', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.2', 'stroke-linecap': 'round' }]]],
+    [3, 'sHealth', [['path', { d: 'M4.4 1h3.2v3.4H11v3.2H7.6V11H4.4V7.6H1V4.4h3.4z', fill: 'currentColor' }]]],
+    [4, 'sVitality', [['path', { d: 'M6 10.8C2.4 8.3 1 6.5 1 4.4 1 2.9 2.2 1.7 3.6 1.7c1 0 1.9.5 2.4 1.3.5-.8 1.4-1.3 2.4-1.3 1.4 0 2.6 1.2 2.6 2.7 0 2.1-1.4 3.9-5 6.4z', fill: 'currentColor' }]]]
+  ];
 
   // What the player chose on the cooking screen; the version counts up with each choice so the views redraw.
   var station = { tab: 'book', filter: 'all', sort: 'none', search: '', version: 0, started: 0 };
@@ -915,7 +930,7 @@
       hideBookTitle(doc);
       drawBar(doc, section, list);
       drawBookRows(doc, win, list);
-      drawView(doc, section);
+      drawView(doc, section, win);
     }
 
     drawStoveLine(doc);
@@ -926,6 +941,7 @@
 
   function clearStation(doc) {
     doc.querySelectorAll('.' + OURS).forEach(function (node) { node.remove(); });
+    hideOwnTip(doc);
 
     var list = doc.getElementById('recipeList');
 
@@ -1208,26 +1224,32 @@
 
   // ---------- Cook now, Pantry and Queued ----------
 
-  function drawView(doc, section) {
+  function drawView(doc, section, win) {
     var view = firstChildWithClass(section, 'ch-view');
     var key = station.tab + ':' + stationKey();
 
     if (station.tab === 'book') {
-      if (view) view.remove();
+      if (view) {
+        view.remove();
+        hideOwnTip(doc);
+      }
 
       return;
     }
 
     if (view && view.getAttribute('data-key') === key) return;
 
+    // The hovered row is about to go, and a removed row never hears the cursor leave.
+    hideOwnTip(doc);
+
     var top = view ? view.scrollTop : 0;
     var fresh = make(doc, 'div', 'ch-view ' + OURS);
 
     fresh.setAttribute('data-key', key);
 
-    if (station.tab === 'now') fillNow(doc, fresh);
-    else if (station.tab === 'pantry') fillPantry(doc, fresh);
-    else fillQueue(doc, fresh);
+    if (station.tab === 'now') fillNow(doc, fresh, win);
+    else if (station.tab === 'pantry') fillPantry(doc, fresh, win);
+    else fillQueue(doc, fresh, win);
 
     if (view) view.remove();
 
@@ -1249,7 +1271,7 @@
     });
   }
 
-  function fillNow(doc, view) {
+  function fillNow(doc, view, win) {
     var shown = cookNowDishes().filter(function (dish) {
       return matchesFilter({}, dish) && matchesSearch(recipeOf(dish.id).name, dish);
     });
@@ -1262,6 +1284,10 @@
       var row = viewRow(doc, recipeOf(dish.id), recipeOf(dish.id).name, whereLine(doc, dish), 'fillable');
 
       if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
+
+      addGives(doc, row.children[1], dish.gives);
+      recipeTip(doc, win, row, dish.id);
+
       if (dish.hours != null) row.appendChild(spoilChip(doc, dish.hours));
       if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
 
@@ -1271,7 +1297,7 @@
   }
 
   // Every food the player has, soonest to spoil first; a click puts one in the pot from wherever it is kept.
-  function fillPantry(doc, view) {
+  function fillPantry(doc, view, win) {
     var shelves = overlay.pantry || [];
 
     view.appendChild(make(doc, 'div', 'ch-sub', shelves.length ? say('pantryNote') : say('pEmpty')));
@@ -1281,6 +1307,8 @@
       var name = item.name + ' x' + s.count + (s.spoiled > 0 ? ', ' + say('pSpoiled', s.spoiled) : '');
       var row = viewRow(doc, item, name, make(doc, 'div', 'book-cost', (s.places || []).join(', ')), s.count > 0 ? 'fillable' : 'insuff');
 
+      addGives(doc, row.children[1], item.gives);
+      itemTip(doc, win, row, item);
       row.appendChild(s.spoiled > 0 && s.count === 0 ? make(doc, 'span', 'ch-sp ch-bad', say('spoiledWord')) : spoilChip(doc, s.hours));
 
       if (s.count > 0 && !overlay.cooking) {
@@ -1297,7 +1325,7 @@
   }
 
   // The dishes queued in the Cooking Hub window that this stove can cook; Load next fills the first one.
-  function fillQueue(doc, view) {
+  function fillQueue(doc, view, win) {
     var queue = overlay.queue || [];
     var canLoad = !overlay.cooking;
 
@@ -1307,6 +1335,10 @@
       var recipe = recipeOf(id);
       var dish = bookById()[id];
       var row = viewRow(doc, recipe, (i + 1) + '. ' + recipe.name, dish ? whereLine(doc, dish) : null, i === 0 ? 'fillable' : '');
+
+      if (dish) addGives(doc, row.children[1], dish.gives);
+
+      recipeTip(doc, win, row, id);
 
       if (i === 0 && canLoad) row.appendChild(pageButton(doc, 'span', 'st-fill', say('loadNext'), function () { sendAction('next'); }));
       else row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('waiting')));
@@ -1346,6 +1378,107 @@
     if (/^[a-z]+:|^\//i.test(path) || href.indexOf('/') < 0) return path;
 
     return href.slice(0, href.lastIndexOf('/') + 1) + path;
+  }
+
+  // What a dish or food restores, at the foot of its card: one chip per stat it changes, with that stat's icon.
+  function addGives(doc, parent, gives) {
+    var row = givesRow(doc, gives);
+
+    if (row) parent.appendChild(row);
+  }
+
+  function givesRow(doc, gives) {
+    var row = make(doc, 'div', 'ch-gives ' + OURS);
+
+    GIVES_SHOWN.forEach(function (stat) {
+      var value = gives && gives[stat[0]];
+
+      if (!value) return;
+
+      var chip = make(doc, 'span', 'ch-give ' + (value > 0 ? 'ch-gain' : 'ch-loss'));
+
+      chip.setAttribute('title', say(stat[1]));
+      chip.appendChild(statIcon(doc, stat[2]));
+      chip.appendChild(make(doc, 'span', '', (value > 0 ? '+' : '') + value));
+      row.appendChild(chip);
+    });
+
+    return row.children.length ? row : null;
+  }
+
+  function statIcon(doc, shapes) {
+    var svg = doc.createElementNS(SVG_NS, 'svg');
+
+    svg.setAttribute('viewBox', '0 0 12 12');
+    svg.setAttribute('aria-hidden', 'true');
+    shapes.forEach(function (shape) {
+      var part = doc.createElementNS(SVG_NS, shape[0]);
+
+      Object.keys(shape[1]).forEach(function (name) { part.setAttribute(name, shape[1][name]); });
+      svg.appendChild(part);
+    });
+
+    return svg;
+  }
+
+  // The cooking page's own tooltip, written the way its recipe rows write it (name first), so whatever reads that
+  // tooltip (Info Pack's item details) treats a Cook now or Queued row like the book's row for the same recipe.
+  function recipeTip(doc, win, row, id) {
+    row.addEventListener('mouseenter', function () {
+      showOwnTip(doc, recipeTipText(win, id));
+    });
+    row.addEventListener('mouseleave', function () { hideOwnTip(doc); });
+  }
+
+  function recipeTipText(win, id) {
+    var words = (win && win.i18nText) || {};
+    var recipes = (win && win.State && win.State.lastRecipes) || [];
+
+    for (var i = 0; i < recipes.length; i++) {
+      var r = recipes[i];
+
+      if (!r || r.recipeId !== id) continue;
+
+      var status = r.status === 2 ? words.recipeReady : r.status === 1 ? words.recipeCraftable : words.recipeInsufficient;
+
+      return [r.name, r.effectText, String(r.costText || '').replace(/\|/g, '\n'), status].filter(function (line) { return !!line; }).join('\n');
+    }
+
+    return recipeOf(id).name;
+  }
+
+  // A food row shows the tooltip through the page's own showItemTip, as its bag slots do.
+  function itemTip(doc, win, row, item) {
+    row.addEventListener('mouseenter', function () {
+      var tip = doc.getElementById('recipeTooltip');
+
+      if (win && typeof win.showItemTip === 'function') win.showItemTip({ name: item.name, configId: item.id, itemId: 0 });
+      else showOwnTip(doc, item.name);
+
+      if (tip) tip.__chOwned = true;
+    });
+    row.addEventListener('mouseleave', function () { hideOwnTip(doc); });
+  }
+
+  function showOwnTip(doc, content) {
+    var tip = doc.getElementById('recipeTooltip');
+
+    if (!tip) return;
+
+    tip.textContent = content;
+    tip.style.whiteSpace = 'pre-line';
+    tip.style.display = 'block';
+    tip.__chOwned = true;
+  }
+
+  // Only a tooltip one of our rows opened; the page's own stay as the page left them.
+  function hideOwnTip(doc) {
+    var tip = doc.getElementById('recipeTooltip');
+
+    if (!tip || !tip.__chOwned) return;
+
+    tip.__chOwned = false;
+    tip.style.display = 'none';
   }
 
   function spoilChip(doc, hours) {
@@ -1442,7 +1575,7 @@
   function drawOdds(doc, win) {
     var list = doc.getElementById('predictionList');
     var cards = list ? list.querySelectorAll('.pot-card') : [];
-    var isMatch = overlay.show && overlay.odds && !!list && sameDishes(win, cards.length);
+    var isMatch = overlay.show && !!list && sameDishes(win, cards.length);
 
     if (!isMatch) {
       clearOdds(doc);
@@ -1453,25 +1586,35 @@
     addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
 
     for (var i = 0; i < cards.length; i++) {
-      var odds = (overlay.lines || [])[i];
+      var odds = overlay.odds ? (overlay.lines || [])[i] : null;
       // Under the dish's name and hint, in the card's text column.
       var holder = firstChildWithClass(cards[i], 'pot-bd') || cards[i];
-      var drawn = firstChildWithClass(holder, 'ch-odds');
 
-      if (drawn && drawn.getAttribute('data-version') === String(overlayVersion)) continue;
-      if (drawn) drawn.remove();
+      if (holder.getAttribute('data-ch-version') === String(overlayVersion)) continue;
 
-      var why = firstChildWithClass(holder, 'ch-why');
+      holder.setAttribute('data-ch-version', String(overlayVersion));
+      ['ch-odds', 'ch-why', 'ch-potgives'].forEach(function (name) {
+        var drawn = firstChildWithClass(holder, name);
 
-      if (why) why.remove();
+        if (drawn) drawn.remove();
+      });
 
       if (odds) {
         holder.appendChild(oddsBlock(doc, odds));
         holder.appendChild(whyBlock(doc, odds));
       }
+
+      // A dish the player has not learned keeps its secret, as the card's own name and picture do.
+      var gives = cards[i].classList.contains('known') ? givesRow(doc, (overlay.lineGives || [])[i]) : null;
+
+      if (gives) {
+        gives.className += ' ch-potgives';
+        holder.appendChild(gives);
+      }
     }
 
-    drawNudges(doc, list);
+    if (overlay.odds) drawNudges(doc, list);
+    else clearNudges(doc);
 
     if (!hasReportedOddsDrawn) send('diag|odds drawn on the cooking screen');
     hasReportedOddsDrawn = true;
@@ -1493,7 +1636,12 @@
   function clearOdds(doc) {
     doc.querySelectorAll('.ch-odds').forEach(function (node) { node.remove(); });
     doc.querySelectorAll('.ch-why').forEach(function (node) { node.remove(); });
+    doc.querySelectorAll('.ch-potgives').forEach(function (node) { node.remove(); });
+    doc.querySelectorAll('[data-ch-version]').forEach(function (node) { node.setAttribute('data-ch-version', ''); });
+    clearNudges(doc);
+  }
 
+  function clearNudges(doc) {
     var nudges = doc.getElementById(NUDGES_ID);
 
     if (nudges) nudges.remove();
