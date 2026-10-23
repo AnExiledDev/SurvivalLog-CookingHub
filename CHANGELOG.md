@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3
+
+- The Health and Vitality sorts and stat names are now Fitness and Life, the names the game uses.
+
 ## 0.5.2
 
 - Recipes you learned before reaching the cooking level that normally shows them (Family Bucket, for one) now get their stats, odds and missing items in the Recipe Book and can show up in Cook now.

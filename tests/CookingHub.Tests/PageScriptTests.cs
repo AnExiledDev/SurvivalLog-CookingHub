@@ -165,7 +165,7 @@ public class PageScriptTests
 
         page.Click(StationTab("Cook now"));
 
-        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Health +2, Vitality +1", page.Text(Chips(ViewRow("Stir Fry"))));
+        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Fitness +2, Life +1", page.Text(Chips(ViewRow("Stir Fry"))));
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public class PageScriptTests
     {
         var page = Station(Stocked());
 
-        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Health +2, Vitality +1", page.Text(Chips(BookRow("Stir Fry"))));
+        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Fitness +2, Life +1", page.Text(Chips(BookRow("Stir Fry"))));
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public class PageScriptTests
         page.Poll();
 
         Assert.Equal(0, Count(page, "cookingPage().querySelectorAll('.ch-odds')"));
-        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Health +2, Vitality +1", page.Text(Chips("cookingPage().querySelector('.pot-card')")));
+        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Fitness +2, Life +1", page.Text(Chips("cookingPage().querySelector('.pot-card')")));
 
         page.Run($"forecast(cookingFrame, [{StirFry}], 'mystery')");
         page.Poll();
