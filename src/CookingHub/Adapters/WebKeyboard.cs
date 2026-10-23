@@ -4,7 +4,7 @@ using GameCore.HotUpdate.ReduxUI;
 namespace CookingHub.Adapters;
 
 /// <summary>
-/// Sends the keyboard to the web UI while one of the panel's text fields has focus, the way the game's own crafting
+/// Sends the keyboard to the web UI while the cooking screen's search box has focus, the way the game's own crafting
 /// search does, and gives it back as it was found.
 /// </summary>
 internal sealed class WebKeyboard

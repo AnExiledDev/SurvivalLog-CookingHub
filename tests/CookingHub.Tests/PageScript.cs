@@ -43,23 +43,7 @@ internal sealed class PageScript
 
     public void Click(string expression) => Run($"click({expression})");
 
-    public void Live(bool isLive, string keyName) => Call($"live({(isLive ? "true" : "false")},{JsText.Literal(keyName)})");
-
-    /// <summary>Types into the window's text box for the field ("search"), which leaves it focused.</summary>
-    public void Type(string field, string text) => Run($"type(field({JsText.Literal(field)}),{JsText.Literal(text)})");
-
-    /// <summary>The text box loses focus, as when the player clicks elsewhere.</summary>
-    public void Blur(string field) => Run($"fire(field({JsText.Literal(field)}),'focusout')");
-
-    public void Open(string viewJson) => Call($"open({viewJson})");
-
-    public void SetData(string viewJson) => Call($"setData({viewJson})");
-
     public void Catalog(string catalogJson) => Call($"catalog({catalogJson})");
-
-    public void Badge(int count) => Call($"badge({count})");
-
-    public void Close() => Call("close()");
 
     /// <summary>The overlay JSON the plugin sends for the game's cooking screen.</summary>
     public void Cooking(string overlayJson) => Call($"cooking({overlayJson})");

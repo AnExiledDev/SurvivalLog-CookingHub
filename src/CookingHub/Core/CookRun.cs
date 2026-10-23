@@ -10,7 +10,7 @@ public readonly record struct Take(long InstanceId, long OwnerId, int ItemId, in
 public readonly record struct Pressed(bool IsDone, string Message);
 
 /// <summary>
-/// The presses that put food in the open cooking panel's pot: fill it for a dish or the next queued one, add one food,
+/// The presses that put food in the open cooking panel's pot: fill it for a dish, add one food,
 /// swap a spoiled item for a fresh one, and top the stove's fuel up. Food moves a stack at a time, the way the panel's
 /// own recipe click fills a pot (a unit at a time where units never share a slot), and a press stops at the first refusal.
 /// </summary>
@@ -40,18 +40,6 @@ public static class CookRun
         _ => throw new System.InvalidOperationException("unknown reach"),
     };
 
-    /// <summary>Fills the pot for the first queued dish this stove can cook. Filled names that dish when the pot took it, so it can leave the queue.</summary>
-    public static (Pressed Pressed, int? Filled) Next(ICookGame game, CookQueue queue, bool isSpoilingFirst, bool isChinese) => Reach(game, isChinese) switch
-    {
-        Reached.Open open => Next(game, open.Kitchen, open.Stove, queue, isSpoilingFirst, isChinese),
-        Reached.Refused refused => (refused.Pressed, null),
-        _ => throw new System.InvalidOperationException("unknown reach"),
-    };
-
-    /// <summary>
-    /// Fills every free fuel slot with the kinds of fuel the stove already burns, from the bag and home storage. Fuel
-    /// may go in while the stove cooks.
-    /// </summary>
     public static Pressed TopUp(ICookGame game, bool isChinese) => game.Read() switch
     {
         CookRead.Ready { Kitchen: { Stove: { } stove } } => TopUp(game, stove, isChinese),
@@ -145,17 +133,6 @@ public static class CookRun
         }
 
         return true;
-    }
-
-    private static (Pressed, int?) Next(ICookGame game, Kitchen kitchen, Stove stove, CookQueue queue, bool isSpoilingFirst, bool isChinese)
-    {
-        var queued = queue.For(stove);
-
-        if (queued.Count == 0) return (No(Texts.NothingQueued, isChinese), null);
-
-        var pressed = Fill(game, kitchen, stove, queued[0], isSpoilingFirst, isChinese);
-
-        return (pressed, pressed.IsDone ? queued[0] : null);
     }
 
     private static Pressed TopUp(ICookGame game, Stove stove, bool isChinese)

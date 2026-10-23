@@ -6,13 +6,12 @@ using UnityEngine;
 namespace CookingHub.Adapters;
 
 /// <summary>
-/// The window's game side, run once a frame: its open state, the view and catalog it sends to page.js, the HUD
-/// button's badge, the odds drawn on the game's own cooking screen, and the presses the page asks for. Page messages
-/// arrive on the web view's thread, so they are queued and handled here, in this frame.
+/// Cooking Hub's game side, run once a frame: the catalog and odds page.js draws on the game's own cooking screen, the
+/// presses the page asks for, and putting finished dishes away. Page messages arrive on the web view's thread, so they
+/// are queued and handled here, in this frame.
 /// </summary>
 internal sealed class CookSession
 {
-    private const float OpenRefreshSeconds = 1f;
     private const float StoveRefreshSeconds = 0.5f;
     private const float ClosedRefreshSeconds = 5f;
     private const float StartWindowSeconds = 4f;
@@ -24,26 +23,17 @@ internal sealed class CookSession
     private readonly Func<DishNote, bool> _toast;
     private readonly Func<bool> _isCookingScreenOpen;
     private readonly WebKeyboard _keyboard = new();
-    private readonly Action<bool> _saveSpoilingFirst;
-    private readonly Action<bool> _saveShowOdds;
-    private readonly Action<string> _saveQueue;
     private readonly Action<string> _log;
 
-    private KeyCode _panelKey;
     private bool _isSpoilingFirst = true;
     private bool _isShowingOdds = true;
     private bool _isPuttingDishesAway;
 
-    private bool _isOpen;
-    private string _shownView = "";
     private string _shownOverlay = "";
     private Cookbook? _sentCatalog;
-    private int? _sentBadge;
-    private bool? _sentLive;
     private float _nextRefreshAt;
     private bool _wasCookingScreenOpen;
 
-    private CookQueue _queue;
     private LastCooked _last = LastCooked.None;
     private Cookbook? _book;
     private int _startToken;
@@ -51,26 +41,21 @@ internal sealed class CookSession
     private float _nextDishSweepAt;
     private readonly HashSet<long> _toldStays = new();
 
-    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Func<DishNote, bool> toast, Func<bool> isCookingScreenOpen, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
+    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Func<DishNote, bool> toast, Func<bool> isCookingScreenOpen, Action<string> log)
     {
         _game = game;
         _dishes = dishes;
         _page = page;
         _toast = toast;
         _isCookingScreenOpen = isCookingScreenOpen;
-        _saveSpoilingFirst = saveSpoilingFirst;
-        _saveShowOdds = saveShowOdds;
-        _queue = queue;
-        _saveQueue = saveQueue;
         _log = log;
     }
 
     private static bool IsChinese => GameLanguage.IsChinese();
 
     /// <summary>Called on the main thread at start and after each settings change; the page hears them at the next refresh.</summary>
-    public void UseSettings(KeyCode panelKey, bool isSpoilingFirst, bool isShowingOdds, bool isPuttingDishesAway)
+    public void UseSettings(bool isSpoilingFirst, bool isShowingOdds, bool isPuttingDishesAway)
     {
-        _panelKey = panelKey;
         _isSpoilingFirst = isSpoilingFirst;
         _isShowingOdds = isShowingOdds;
         _isPuttingDishesAway = isPuttingDishesAway;
@@ -84,20 +69,6 @@ internal sealed class CookSession
         _page.KeepInstalled(now);
 
         while (PageMessages.TryTake(out var command)) HandleSafely(command);
-
-        if (!_keyboard.IsClaimed && _panelKey != KeyCode.None && Input.GetKeyDown(_panelKey))
-        {
-            Toggle();
-
-            return;
-        }
-
-        if (_isOpen && !_keyboard.IsClaimed && Input.GetKeyDown(KeyCode.Escape))
-        {
-            Close();
-
-            return;
-        }
 
         if (_isPuttingDishesAway && now >= _nextDishSweepAt) PutDishesAway(now);
         if (now >= _nextRefreshAt || HasCookingScreenFlipped()) Refresh(now);
@@ -135,7 +106,7 @@ internal sealed class CookSession
         }
     }
 
-    /// <summary>One command that throws must not cost the rest of the frame its commands or the key checks.</summary>
+    /// <summary>One command that throws must not cost the rest of the frame its commands.</summary>
     private void HandleSafely(PageCommand command)
     {
         try
@@ -153,12 +124,6 @@ internal sealed class CookSession
     {
         switch (command)
         {
-            case PageCommand.Toggle:
-                Toggle();
-                break;
-            case PageCommand.Close:
-                Close();
-                break;
             case PageCommand.Ready:
                 _log("page script ready");
                 _page.ForgetWords();
@@ -184,30 +149,11 @@ internal sealed class CookSession
             case PageCommand.Repeat:
                 Press("repeat", Repeat);
                 break;
-            case PageCommand.Next:
-                Press("next", LoadNext);
-                break;
             case PageCommand.TopUp:
                 Press("top up", () => CookRun.TopUp(_game, IsChinese));
                 break;
-            case PageCommand.Queue queue:
-                Press($"queue {queue.RecipeId}", () => ChangeQueue(queue.RecipeId, isAdding: true));
-                break;
-            case PageCommand.Unqueue unqueue:
-                Press($"unqueue {unqueue.RecipeId}", () => ChangeQueue(unqueue.RecipeId, isAdding: false));
-                break;
             case PageCommand.Swap swap:
                 Press($"swap {swap.ItemId}", () => CookRun.Swap(_game, swap.ItemId, IsChinese));
-                break;
-            case PageCommand.SpoilingFirst spoilingFirst:
-                _isSpoilingFirst = spoilingFirst.IsOn;
-                _saveSpoilingFirst(spoilingFirst.IsOn);
-                Say((spoilingFirst.IsOn ? Texts.SpoilingFirstOn : Texts.SpoilingFirstOff).Pick(IsChinese));
-                break;
-            case PageCommand.ShowOdds showOdds:
-                _isShowingOdds = showOdds.IsOn;
-                _saveShowOdds(showOdds.IsOn);
-                Say((showOdds.IsOn ? Texts.OddsOn : Texts.OddsOff).Pick(IsChinese));
                 break;
             default:
                 throw new InvalidOperationException("unhandled page command " + command);
@@ -230,55 +176,15 @@ internal sealed class CookSession
         return _book.Recipes.TryGetValue(recipeId, out var recipe) ? new Pressed(true, Texts.Starting.Say(IsChinese, recipe.Name)) : pressed;
     }
 
-    /// <summary>Fills the pot for the first queued dish this stove can cook; a dish that went in leaves the queue.</summary>
-    private Pressed LoadNext()
-    {
-        var (pressed, filled) = CookRun.Next(_game, _queue, _isSpoilingFirst, IsChinese);
-
-        if (filled is { } recipeId) SaveQueue(_queue.Remove(recipeId));
-
-        return pressed;
-    }
-
-    private Pressed ChangeQueue(int recipeId, bool isAdding)
-    {
-        if (_book == null) return new Pressed(false, Texts.NoGame.Pick(IsChinese));
-
-        var (queue, pressed) = _queue.Press(_book, recipeId, isAdding, IsChinese);
-
-        SaveQueue(queue);
-
-        return pressed;
-    }
-
-    private void SaveQueue(CookQueue queue)
-    {
-        if (ReferenceEquals(queue, _queue)) return;
-
-        _queue = queue;
-        _saveQueue(queue.Write());
-    }
-
     private void ForgetSent()
     {
-        _sentLive = null;
-        _sentBadge = null;
-        _shownView = "";
         _shownOverlay = "";
         _nextRefreshAt = 0f;
     }
 
-    private void Say(string message)
-    {
-        _log(message);
-        _page.Status(message);
-        Refresh(Time.unscaledTime);
-    }
-
     /// <summary>
-    /// Reads the kitchen once: the HUD button shows while a game is loaded, its badge counts food spoiling soon, the
-    /// game's cooking screen gets its odds while one is open, and an open window is redrawn when its view changed. A
-    /// read that throws is logged by the game adapter and read as not ready.
+    /// Reads the kitchen once, so the game's cooking screen gets its odds while one is open. A read that throws is logged
+    /// by the game adapter and read as not ready.
     /// </summary>
     private void Refresh(float now)
     {
@@ -291,26 +197,8 @@ internal sealed class CookSession
         if (kitchen != null) _book = kitchen.Book;
         if (kitchen?.Stove is not { IsCooking: false } || now >= _startUntil) _startUntil = 0f;
 
-        _nextRefreshAt = now + (isStoveOpen || _wasCookingScreenOpen ? StoveRefreshSeconds : _isOpen ? OpenRefreshSeconds : ClosedRefreshSeconds);
-        SendLive(read is not CookRead.NoGame);
-        SendBadge(kitchen == null ? 0 : Pantry.SpoilingSoon(kitchen, Finder.SpoilingHours));
+        _nextRefreshAt = now + (isStoveOpen || _wasCookingScreenOpen ? StoveRefreshSeconds : ClosedRefreshSeconds);
         SendOverlay(kitchen);
-
-        if (_isOpen) Show(read, isOpening: false);
-    }
-
-    private void SendLive(bool isLive)
-    {
-        if (isLive == _sentLive) return;
-        if (_page.Live(isLive, KeyName())) _sentLive = isLive;
-
-        _log($"HUD button {(isLive ? "shown" : "hidden")}");
-    }
-
-    private void SendBadge(int count)
-    {
-        if (count == _sentBadge) return;
-        if (_page.Badge(count)) _sentBadge = count;
     }
 
     /// <summary>The odds on the game's cooking screen, sent only when they changed. The catalog goes first, since nudges name items by id.</summary>
@@ -329,75 +217,7 @@ internal sealed class CookSession
         var last = _last.For(stove.FurnitureId);
         var isStarting = _startUntil > 0f && last != null && _last.Pending == last;
 
-        return new StationExtras(last, _queue.For(stove), isStarting ? _startToken : 0);
-    }
-
-    private void Toggle()
-    {
-        if (_isOpen) Close();
-        else Open();
-    }
-
-    /// <summary>With no game loaded there is nothing to show and the window stays shut; anything else opens it.</summary>
-    private void Open()
-    {
-        var read = _game.Read();
-
-        if (read is CookRead.NoGame)
-        {
-            _page.Status(Texts.NoGame.Pick(IsChinese));
-
-            return;
-        }
-
-        _isOpen = true;
-        InputGate.PanelOpened();
-        Show(read, isOpening: true);
-        _log("window opened");
-    }
-
-    private void Close()
-    {
-        if (!_isOpen) return;
-
-        _isOpen = false;
-        _keyboard.Release();
-        InputGate.PanelClosed();
-        _page.Close();
-    }
-
-    /// <summary>The catalog goes first, once per game and language, since the view names items only by id.</summary>
-    private void Show(CookRead read, bool isOpening)
-    {
-        var settings = new ViewSettings(KeyName(), _isSpoilingFirst, _isShowingOdds);
-        string view;
-
-        switch (read)
-        {
-            case CookRead.Ready ready:
-                SendCatalog(ready.Kitchen.Book);
-                view = CookView.Ready(ready.Kitchen, settings, _queue);
-                break;
-            case CookRead.NotReady notReady:
-                view = CookView.NotReady(Texts.NotReady.Say(IsChinese, notReady.Reason), settings);
-                break;
-            default:
-                Close();
-                return;
-        }
-
-        if (isOpening)
-        {
-            _shownView = view;
-            _page.Open(view);
-
-            return;
-        }
-
-        if (view == _shownView) return;
-
-        _shownView = view;
-        _page.Show(view);
+        return new StationExtras(last, isStarting ? _startToken : 0);
     }
 
     private void SendCatalog(Cookbook book)
@@ -428,5 +248,4 @@ internal sealed class CookSession
         Refresh(Time.unscaledTime);
     }
 
-    private string KeyName() => _panelKey == KeyCode.None ? "" : _panelKey.ToString();
 }

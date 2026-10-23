@@ -274,43 +274,6 @@ public class CookRunTests
     }
 
     [Fact]
-    public void Load_next_fills_the_first_queued_dish_this_stove_can_cook()
-    {
-        var game = Stocked();
-
-        game.Allowed = new[] { PorkRice };
-
-        var (pressed, filled) = CookRun.Next(game, new CookQueue(new[] { StirFry, PorkRice }), true, false);
-
-        Assert.Equal("The pot is filled for Pork Rice.", pressed.Message);
-        Assert.Equal(PorkRice, filled);
-        Assert.Equal(new long[] { 2, 3 }, InPot(game));
-    }
-
-    [Fact]
-    public void Load_next_keeps_a_dish_in_the_queue_when_its_food_runs_short()
-    {
-        var game = new FakeGame { Stock = { S(1, Rice) } };
-        var (pressed, filled) = CookRun.Next(game, new CookQueue(new[] { PorkRice }), true, false);
-
-        Assert.False(pressed.IsDone);
-        Assert.Null(filled);
-    }
-
-    [Fact]
-    public void Load_next_says_so_when_nothing_queued_suits_this_stove()
-    {
-        var game = Stocked();
-
-        game.Allowed = new[] { StirFry };
-
-        var (pressed, filled) = CookRun.Next(game, new CookQueue(new[] { PorkRice }), true, false);
-
-        Assert.Equal("Nothing queued for this stove.", pressed.Message);
-        Assert.Null(filled);
-    }
-
-    [Fact]
     public void Top_up_fills_the_free_fuel_slots_with_the_fuel_the_stove_burns()
     {
         var game = new FakeGame { FuelSlots = 4, FuelUsed = 1, FuelStock = { S(50, Firewood, count: 5, owner: Chest) } };

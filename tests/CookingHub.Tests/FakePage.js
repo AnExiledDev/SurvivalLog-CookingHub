@@ -382,25 +382,6 @@ function hudButton() {
   return hudPage().querySelector('.ch-hud-btn');
 }
 
-function panel() {
-  return document.getElementById('ch-root');
-}
-
-// The first button in the window for an action, or for an action and its arguments.
-function panelButton(action, args) {
-  return document.querySelectorAll('[data-act]').filter(function (node) {
-    return node.getAttribute('data-act') === action && (args === undefined || node.getAttribute('data-args') === args);
-  })[0];
-}
-
-function panelButtons(action) {
-  return document.querySelectorAll('[data-act]').filter(function (node) { return node.getAttribute('data-act') === action; });
-}
-
-function field(name) {
-  return document.querySelectorAll('input').filter(function (node) { return node.getAttribute('data-field') === name; })[0];
-}
-
 // An event of any type, bubbling from the target as focusin, focusout and input do in a browser.
 function fire(target, type, extra) {
   var isStopped = false;

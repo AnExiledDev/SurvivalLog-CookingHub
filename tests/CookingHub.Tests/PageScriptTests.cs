@@ -4,144 +4,15 @@ using static CookingHub.Tests.FakeGame;
 
 namespace CookingHub.Tests;
 
-/// <summary>The window, the HUD button and the odds on the cooking screen as the player uses them, driven through page.js in Jint.</summary>
+/// <summary>The cooking screen's tabs, presses and odds as the player uses them, driven through page.js in Jint.</summary>
 public class PageScriptTests
 {
-    private static readonly ViewSettings Settings = new("K", true, true);
-
     private static FakeGame Stocked() => new()
     {
         Stock = { S(1, Rice, hours: 10), S(2, Pork, owner: Chest), S(3, Salt) },
     };
 
-    private static PageScript Opened(FakeGame? game = null)
-    {
-        game ??= Stocked();
-
-        var page = new PageScript();
-
-        page.Catalog(CatalogView.Write(Book));
-        page.Open(CookView.Ready(game.Kitchen(), Settings));
-
-        return page;
-    }
-
-    private static string[] ShownDishes(PageScript page) =>
-        page.Text("panel().querySelectorAll('[data-dish]').map(function (n) { return n.getAttribute('data-dish'); }).join(',')").Split(',', StringSplitOptions.RemoveEmptyEntries);
-
     private static int Count(PageScript page, string expression) => (int)double.Parse(page.Text(expression + ".length"));
-
-    [Fact]
-    public void The_hud_button_appears_with_a_game_loaded_and_shows_food_spoiling_soon()
-    {
-        var page = new PageScript();
-
-        page.OpenHud();
-        page.Live(true, "K");
-        page.Badge(3);
-        page.Poll();
-
-        Assert.Equal("3", page.Text("hudButton().querySelector('.ch-hud-badge').textContent"));
-
-        page.Badge(140);
-        page.Poll();
-
-        Assert.Equal("99+", page.Text("hudButton().querySelector('.ch-hud-badge').textContent"));
-
-        page.Click("hudButton()");
-
-        Assert.IsType<PageCommand.Toggle>(Assert.Single(page.Sent));
-    }
-
-    [Fact]
-    public void Every_dish_the_player_can_see_is_listed_and_only_a_ready_one_can_be_filled()
-    {
-        var page = Opened();
-
-        Assert.Equal(new[] { "1", "2", "4" }, ShownDishes(page));
-        Assert.False(page.Is("panelButton('fill','1').disabled"));
-        Assert.True(page.Is("panelButton('fill','4').disabled"));
-        Assert.Contains("Cooking level 5", page.Text("panel().querySelectorAll('[data-dish]').filter(function (n) { return n.getAttribute('data-dish') === '4'; })[0].textContent"));
-    }
-
-    [Fact]
-    public void Fill_stays_open_on_a_pot_that_already_holds_food()
-    {
-        var game = Stocked();
-
-        game.Pot.Add(S(8, Wheat, owner: Workbench));
-
-        Assert.False(Opened(game).Is("panelButton('fill','1').disabled"));
-    }
-
-    [Fact]
-    public void Fill_is_shut_while_the_stove_is_cooking_or_none_is_open()
-    {
-        var cooking = Stocked();
-        var shut = Stocked();
-
-        cooking.IsCooking = true;
-        shut.IsStoveOpen = false;
-
-        Assert.True(Opened(cooking).Is("panelButton('fill','1').disabled"));
-        Assert.True(Opened(shut).Is("panelButton('fill','1').disabled"));
-    }
-
-    [Fact]
-    public void Fill_sends_one_press_until_the_plugin_answers()
-    {
-        var page = Opened();
-
-        page.Click("panelButton('fill','1')");
-        page.Click("panelButton('fill','1')");
-
-        Assert.Equal(new PageCommand.Fill(PorkRice), Assert.Single(page.Sent));
-
-        page.Status("The pot is filled for Pork Rice.");
-        page.Click("panelButton('fill','2')");
-
-        Assert.Equal(new PageCommand.Fill(StirFry), page.Sent[^1]);
-    }
-
-    [Fact]
-    public void The_filter_and_the_search_narrow_the_list()
-    {
-        var page = Opened();
-
-        page.Click("panelButton('show','locked')");
-
-        Assert.Equal(new[] { "4" }, ShownDishes(page));
-
-        page.Click("panelButton('show','all')");
-        page.Type("search", "STIR");
-
-        Assert.Equal(new[] { "2" }, ShownDishes(page));
-        Assert.Contains(page.Sent, command => command is PageCommand.Focus { IsTyping: true });
-    }
-
-    [Fact]
-    public void The_pantry_shows_food_spoiling_within_a_day_in_red()
-    {
-        var page = Opened();
-
-        page.Click("panelButton('tab','pantry')");
-
-        Assert.Equal(1, Count(page, "panel().querySelectorAll('.ch-red')"));
-        Assert.Contains("Rice", page.Text("panel().querySelector('.ch-red').parentElement.textContent"));
-    }
-
-    [Fact]
-    public void The_settings_switches_send_the_opposite_of_what_they_show()
-    {
-        var page = Opened();
-
-        page.Click("panelButton('tab','settings')");
-        page.Click("panelButton('spoilfirst')");
-        page.Status("ok");
-        page.Click("panelButton('odds')");
-
-        Assert.Equal(new PageCommand[] { new PageCommand.SpoilingFirst(false), new PageCommand.ShowOdds(false) }, page.Sent);
-    }
 
     [Fact]
     public void The_odds_are_drawn_only_on_the_dishes_they_were_worked_out_for()
@@ -366,20 +237,6 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void Load_next_shows_on_a_pot_that_already_holds_food()
-    {
-        var game = Stocked();
-
-        game.Pot.Add(S(8, Wheat, owner: Workbench));
-
-        var page = Station(game, new StationExtras(null, new[] { PorkRice }, 0));
-
-        page.Click(StationTab("Queued"));
-
-        Assert.Equal(1, Count(page, "cookingPage().querySelector('.ch-view').querySelectorAll('.st-fill')"));
-    }
-
-    [Fact]
     public void Searching_the_book_hides_rows_that_do_not_match()
     {
         var page = Station(Stocked());
@@ -392,40 +249,9 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void The_queued_tab_loads_the_first_dish_and_removes_any()
-    {
-        var page = Station(Stocked(), new StationExtras(null, new[] { PorkRice, StirFry }, 0));
-
-        page.Click(StationTab("Queued"));
-
-        Assert.Equal("none", page.Text("cookingPage().getElementById('recipeList').style.display"));
-        Assert.Contains("1. Pork Rice", page.Text("cookingPage().querySelector('.ch-view').textContent"));
-
-        page.Click("cookingPage().querySelector('.ch-view').querySelector('.st-fill')");
-        page.Status("ok");
-        page.Click("cookingPage().querySelectorAll('.ch-x')[1]");
-
-        Assert.Equal(new PageCommand[] { new PageCommand.Next(), new PageCommand.Unqueue(StirFry) }, page.Sent);
-    }
-
-    [Fact]
-    public void Load_next_waits_while_the_stove_cooks()
-    {
-        var game = Stocked();
-
-        game.IsCooking = true;
-
-        var page = Station(game, new StationExtras(null, new[] { PorkRice }, 0), isCooking: true);
-
-        page.Click(StationTab("Queued"));
-
-        Assert.Equal(0, Count(page, "cookingPage().querySelector('.ch-view').querySelectorAll('.st-fill')"));
-    }
-
-    [Fact]
     public void Repeat_last_shows_on_an_idle_empty_stove_and_asks_for_the_last_dish()
     {
-        var page = Station(Stocked(), new StationExtras(PorkRice, new List<int>(), 0));
+        var page = Station(Stocked(), new StationExtras(PorkRice, 0));
 
         Assert.Contains("Pork Rice", page.Text("cookingPage().getElementById('ch-repeat').textContent"));
 
@@ -441,13 +267,13 @@ public class PageScriptTests
 
         game.Pot.Add(S(8, Rice, owner: Workbench));
 
-        var page = Station(game, new StationExtras(PorkRice, new List<int>(), 7));
+        var page = Station(game, new StationExtras(PorkRice, 7));
 
         page.Poll();
 
         Assert.Equal("1", page.Text("cookPresses"));
 
-        var busy = Station(game, new StationExtras(PorkRice, new List<int>(), 9), isCooking: true);
+        var busy = Station(game, new StationExtras(PorkRice, 9), isCooking: true);
 
         Assert.Equal("0", busy.Text("cookPresses"));
     }
@@ -468,21 +294,57 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void The_window_queues_a_dish_once_and_lists_it_under_Queued()
+    public void The_cooking_screen_has_no_Queued_tab()
     {
-        var game = Stocked();
+        var page = Station(Stocked());
+
+        Assert.Equal("Recipe Book,Cook now,Pantry", page.Text("cookingPage().querySelectorAll('.ch-tab').map(function (t) { return t.getAttribute('data-label').split('|')[0]; }).join(',')"));
+    }
+
+    [Fact]
+    public void Load_sends_one_press_until_the_plugin_answers()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+        page.Click(LoadOn("Stir Fry"));
+        page.Click(LoadOn("Stir Fry"));
+
+        Assert.Equal(new PageCommand.Fill(StirFry), Assert.Single(page.Sent));
+
+        page.Status("The pot is filled for Stir Fry.");
+        page.Click(LoadOn("Stir Fry"));
+
+        Assert.Equal(2, page.Sent.Count);
+    }
+
+    [Fact]
+    public void A_press_result_shows_as_a_toast_over_the_game_and_an_empty_one_hides_it()
+    {
         var page = new PageScript();
 
-        page.Catalog(CatalogView.Write(Book));
-        page.Open(CookView.Ready(game.Kitchen(), Settings, new CookQueue(new[] { StirFry })));
+        page.Status("The pot is filled for Stir Fry.");
 
-        Assert.True(page.Is("panelButton('queue','2').disabled"));
+        Assert.Equal("block", page.Text("document.getElementById('ch-toast').style.display"));
+        Assert.Equal("The pot is filled for Stir Fry.", page.Text("document.getElementById('ch-toast').textContent"));
 
-        page.Click("panelButton('queue','1')");
-        page.Status("ok");
-        page.Click("panelButton('tab','queue')");
-        page.Click("panelButton('unqueue','2')");
+        page.Status("");
 
-        Assert.Equal(new PageCommand[] { new PageCommand.Queue(PorkRice), new PageCommand.Unqueue(StirFry) }, page.Sent);
+        Assert.Equal("none", page.Text("document.getElementById('ch-toast').style.display"));
     }
+
+    [Fact]
+    public void The_hud_gets_no_cooking_hub_button_and_the_script_offers_no_window()
+    {
+        var page = new PageScript();
+
+        page.OpenHud();
+        page.Poll();
+
+        Assert.False(page.Is("hudButton()"));
+        Assert.False(page.Is("window.__slcookinghub.open || window.__slcookinghub.live || window.__slcookinghub.badge"));
+        Assert.False(page.Is("document.getElementById('ch-root')"));
+    }
+
+    private static string LoadOn(string name) => ViewRow(name) + ".querySelector('.st-fill')";
 }

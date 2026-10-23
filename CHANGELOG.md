@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- The Cooking Hub window, its pot button on the HUD and the `PanelKey` key (`K`) are gone. Everything the mod does now happens on the game's own cooking screen: Cook now lists what the stove can make from your food, and Pantry lists all your food.
+- The queue is gone: no Queued tab on the cooking screen and no Load next. `BepInEx\config\CookingHub.queue.txt` is no longer used and can be deleted.
+- `FillSpoilingFirst` and `ShowOdds` are set in the cfg file or on the Mod Manager's Mods screen.
+
 ## 0.4.1
 
 - Cook now, Pantry and Queued cards show what the dish or food restores at the bottom, one icon per stat. Pot cards for known dishes show it too, also with the odds turned off.

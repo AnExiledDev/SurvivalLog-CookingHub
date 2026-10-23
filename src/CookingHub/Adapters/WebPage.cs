@@ -47,26 +47,14 @@ internal sealed class WebPage
     /// <summary>The page lost its script, or loaded it afresh, so its words go with the next call.</summary>
     public void ForgetWords() => _wordsAreChinese = null;
 
-    public void Open(string viewJson) => Call($"open({viewJson})");
-
-    public void Show(string viewJson) => Call($"setData({viewJson})");
-
-    public void Close() => Call("close()");
-
-    /// <summary>A result line: in the panel's footer while it is open, as a toast otherwise.</summary>
+    /// <summary>A result line, shown as a toast over the game.</summary>
     public void Status(string text) => Call($"status({JsText.Literal(text)})");
-
-    /// <summary>Whether a game is loaded (the HUD button shows only then) and the panel key's name, "" for none.</summary>
-    public bool Live(bool isLive, string keyName) => Call($"live({(isLive ? "true" : "false")},{JsText.Literal(keyName)})");
 
     /// <summary>Names and icons of food types, items and recipes; the views refer to them by id only.</summary>
     public bool Catalog(string catalogJson) => Call($"catalog({catalogJson})");
 
     /// <summary>The odds and nudges drawn on the game's own cooking screen, or a view with show false to clear them.</summary>
     public bool Cooking(string overlayJson) => Call($"cooking({overlayJson})");
-
-    /// <summary>The count badge on the HUD button, sent whether or not the window is open.</summary>
-    public bool Badge(int count) => Call($"badge({count})");
 
     /// <summary>
     /// The page's words go with the first call after a load and again whenever the game's language changes; resending
