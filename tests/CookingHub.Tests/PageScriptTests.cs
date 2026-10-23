@@ -198,6 +198,49 @@ public class PageScriptTests
         Assert.Equal("", page.Text(Chips(ViewRow("Pork"))));
     }
 
+    private static string BookRow(string name) =>
+        $"cookingPage().querySelectorAll('.book-item').filter(function (r) {{ return r.textContent.indexOf('{name}') >= 0; }})[0]";
+
+    [Fact]
+    public void A_recipe_book_row_shows_what_the_dish_gives_like_its_cook_now_card()
+    {
+        var page = Station(Stocked());
+
+        Assert.Equal("Satiety +40, Stamina +8, Morale +5, Health +2, Vitality +1", page.Text(Chips(BookRow("Stir Fry"))));
+    }
+
+    [Fact]
+    public void Cook_now_and_pantry_cards_name_their_dish_or_food_for_info_pack()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+
+        Assert.Equal(FancyBowl.ToString(), page.Text(ViewRow("Stir Fry") + ".getAttribute('data-slip-item')"));
+
+        page.Click(StationTab("Pantry"));
+
+        Assert.Equal(Rice.ToString(), page.Text(ViewRow("Rice") + ".getAttribute('data-slip-item')"));
+    }
+
+    [Fact]
+    public void With_info_pack_installed_a_card_leaves_the_page_tooltip_to_info_pack()
+    {
+        var page = Station(Stocked());
+
+        page.Run("cookingFrame.contentWindow.__slipTagged = { configId: 0 }");
+        page.Click(StationTab("Cook now"));
+        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseenter')");
+
+        Assert.Equal("none", page.Text(Tooltip + ".style.display"));
+
+        page.Click(StationTab("Pantry"));
+        page.Run($"fire({ViewRow("Rice")}, 'mouseenter')");
+
+        Assert.Equal("none", page.Text(Tooltip + ".style.display"));
+        Assert.True(page.Is("!cookingFrame.contentWindow.shownItem"));
+    }
+
     [Fact]
     public void Changing_tabs_under_the_cursor_hides_the_tooltip_its_card_opened()
     {

@@ -308,11 +308,19 @@ public static class CatalogView
             json.WriteNumber("id", recipe.Id);
             json.WriteString("name", recipe.Name);
             json.WriteString("icon", DishIcon(book, recipe));
+            json.WriteNumber("dish", NamedDish(recipe));
             json.WriteEndObject();
         }
 
         json.WriteEndArray();
     });
+
+    /// <summary>
+    /// The dish item a recipe is named for: its Normal dish, else Good, Perfect, then Fail; 0 for none. Info Pack picks
+    /// a recipe's dish the same way, so a row tagged with it shows the same tooltip as the book's row.
+    /// </summary>
+    private static int NamedDish(Recipe recipe) =>
+        new[] { 1, 2, 3, 0 }.Where(tier => tier < recipe.Outputs.Count).Select(tier => recipe.Outputs[tier]).FirstOrDefault(id => id > 0);
 
     /// <summary>The picture of the best dish the recipe makes that has one.</summary>
     private static string? DishIcon(Cookbook book, Recipe recipe) =>

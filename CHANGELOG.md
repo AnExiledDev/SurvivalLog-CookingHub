@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1
+
+- Recipe Book rows show what the dish restores, one icon per stat, as Cook now cards do.
+- With Info Pack installed, every Cook now and Pantry card shows Info Pack's own tooltip. Before, a dish from a recipe group (a row with "2 recipes") showed only its name, and the other cards showed the game's plain text above Info Pack's details.
+
 ## 0.5.0
 
 - The Cooking Hub window, its pot button on the HUD and the `PanelKey` key (`K`) are gone. Everything the mod does now happens on the game's own cooking screen: Cook now lists what the stove can make from your food, and Pantry lists all your food.

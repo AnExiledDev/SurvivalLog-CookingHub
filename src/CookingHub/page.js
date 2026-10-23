@@ -518,6 +518,7 @@
 
     removeOurs(body);
     body.appendChild(whereLine(doc, dish));
+    addGives(doc, body, dish.gives);
 
     if (dish.chances) {
       body.appendChild(miniBar(doc, dish.chances));
@@ -630,6 +631,7 @@
       if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
 
       addGives(doc, row.children[1], dish.gives);
+      tagForInfoPack(row, recipeOf(dish.id).dish);
       recipeTip(doc, win, row, dish.id);
 
       if (dish.hours != null) row.appendChild(spoilChip(doc, dish.hours));
@@ -652,6 +654,7 @@
       var row = viewRow(doc, item, name, make(doc, 'div', 'book-cost', (s.places || []).join(', ')), s.count > 0 ? 'fillable' : 'insuff');
 
       addGives(doc, row.children[1], item.gives);
+      tagForInfoPack(row, item.id);
       itemTip(doc, win, row, item);
       row.appendChild(s.spoiled > 0 && s.count === 0 ? make(doc, 'span', 'ch-sp ch-bad', say('spoiledWord')) : spoilChip(doc, s.hours));
 
@@ -741,11 +744,21 @@
     return svg;
   }
 
-  // The cooking page's own tooltip, written the way its recipe rows write it (name first), so whatever reads that
-  // tooltip (Info Pack's item details) treats a Cook now row like the book's row for the same recipe.
+  // Info Pack draws its own tooltip over any element tagged with an item id; the tag does nothing without it.
+  function tagForInfoPack(row, itemId) {
+    if (itemId > 0) row.setAttribute('data-slip-item', String(itemId));
+  }
+
+  // With Info Pack installed it marks the page (__slipTagged) and draws a tagged row's tooltip itself; the page's
+  // tooltip as well would say the same things twice.
+  function hasInfoPack(win) {
+    return !!(win && win.__slipTagged);
+  }
+
+  // Without Info Pack: the cooking page's own tooltip, written the way its recipe rows write it (name first).
   function recipeTip(doc, win, row, id) {
     row.addEventListener('mouseenter', function () {
-      showOwnTip(doc, recipeTipText(win, id));
+      if (!hasInfoPack(win)) showOwnTip(doc, recipeTipText(win, id));
     });
     row.addEventListener('mouseleave', function () { hideOwnTip(doc); });
   }
@@ -767,10 +780,12 @@
     return recipeOf(id).name;
   }
 
-  // A food row shows the tooltip through the page's own showItemTip, as its bag slots do.
+  // Without Info Pack: a food row shows the tooltip through the page's own showItemTip, as its bag slots do.
   function itemTip(doc, win, row, item) {
     row.addEventListener('mouseenter', function () {
       var tip = doc.getElementById('recipeTooltip');
+
+      if (hasInfoPack(win)) return;
 
       if (win && typeof win.showItemTip === 'function') win.showItemTip({ name: item.name, configId: item.id, itemId: 0 });
       else showOwnTip(doc, item.name);
