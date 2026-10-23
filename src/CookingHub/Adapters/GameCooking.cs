@@ -224,7 +224,7 @@ internal sealed partial class GameCooking : ICookGame
             var item = available[i];
 
             if (item == null || item.ItemCount <= 0 || !book.Items.TryGetValue(item.ItemConfigId, out var known) || !known.CanCook) continue;
-            if (item.OwnerId != roleId && ItemManager.IsExcludedFromCostPool(item.OwnerId)) continue;
+            if (item.OwnerId != roleId && IsSetApart(item.OwnerId)) continue;
 
             stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)));
         }
@@ -310,13 +310,28 @@ internal sealed partial class GameCooking : ICookGame
             var item = available[i];
 
             if (item == null || item.ItemCount <= 0 || !kinds.Contains(item.ItemConfigId)) continue;
-            if (item.OwnerId != roleId && ItemManager.IsExcludedFromCostPool(item.OwnerId)) continue;
+            if (item.OwnerId != roleId && IsSetApart(item.OwnerId)) continue;
             if (config.Get_Config_Item(item.ItemConfigId) is not { Burnable: true }) continue;
 
             stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)) with { Count = item.ItemCount });
         }
 
         return stock;
+    }
+
+    /// <summary>
+    /// Storage the game keeps out of its cost pool, and the neighbor's basket, which it does not: what the player
+    /// staged there is going to her, so it is neither food to cook with nor a place for dishes.
+    /// </summary>
+    private static bool IsSetApart(long ownerId) =>
+        ItemManager.IsExcludedFromCostPool(ownerId) || IsNeighborBasket(GameSingleton.Existing<BattleLogicWorld>()?._AgentManager?.GetAgent(ownerId)?.TryCast<Furniture>());
+
+    /// <summary>The basket's config id is 0 when there is none.</summary>
+    private static bool IsNeighborBasket(Furniture? furniture)
+    {
+        var basketId = NeighborRules.GetBasketFurnitureId();
+
+        return furniture != null && basketId > 0 && furniture.AgentConfigId == basketId;
     }
 
     private static Furniture? FurnitureOf(AgentManager? agents, long furnitureId)

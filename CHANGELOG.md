@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4
+
+- Load, the recipe book and fuel top up no longer use food or fuel staged in the neighbor's basket, and Put dishes away never puts a dish into it.
+
 ## 0.5.3
 
 - The Health and Vitality sorts and stat names are now Fitness and Life, the names the game uses.

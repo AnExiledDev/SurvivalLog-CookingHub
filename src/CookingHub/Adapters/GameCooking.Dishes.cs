@@ -132,7 +132,7 @@ internal sealed partial class GameCooking : IDishGame
 
         for (var i = 0; found != null && i < found.Count; i++)
         {
-            if (found[i] != null) homes.Add(found[i]);
+            if (found[i] != null && !IsNeighborBasket(found[i])) homes.Add(found[i]);
         }
 
         return homes;
