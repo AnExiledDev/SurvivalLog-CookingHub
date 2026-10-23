@@ -117,6 +117,38 @@ internal sealed class FakeGame : ICookGame
 
     public CookRead? Override { get; set; }
 
+    /// <summary>Home stoves that are not cooking and hold nothing, for the queue. Each one's pot is in IdlePots.</summary>
+    public List<IdleStove> Idle { get; } = new();
+
+    /// <summary>What went into each idle stove's pot, by its workbench id.</summary>
+    public Dictionary<long, List<Stack>> IdlePots { get; } = new();
+
+    /// <summary>Each start the queue asked for: the stove, and the recipe ids it passed.</summary>
+    public List<(long StoveId, IReadOnlyList<int> RecipeIds)> Started { get; } = new();
+
+    /// <summary>The game does not start a stove, as when the pot turns out to be no recipe.</summary>
+    public bool RefusesStart { get; set; }
+
+    /// <summary>An idle home stove with an empty pot, its workbench id the same as its own as in the game.</summary>
+    public IdleStove AddIdle(long stoveId, string name, bool isOpen = false, bool hasHeat = true, IReadOnlyCollection<int>? allowed = null, int maxFood = 6)
+    {
+        var idle = new IdleStove(new Stove(stoveId, stoveId, 0, maxFood, false, false, 0, allowed, Array.Empty<Stack>(), Array.Empty<Forecast>(), name), isOpen, hasHeat);
+
+        Idle.Add(idle);
+        IdlePots[stoveId] = new List<Stack>();
+
+        return idle;
+    }
+
+    public IReadOnlyList<IdleStove> IdleStoves() => Idle.ToList();
+
+    public bool Start(long furnitureId, IReadOnlyList<int> recipeIds)
+    {
+        Started.Add((furnitureId, recipeIds));
+
+        return !RefusesStart;
+    }
+
     /// <summary>Stacks the game refuses to move.</summary>
     public HashSet<long> Stuck { get; } = new();
 
@@ -146,6 +178,7 @@ internal sealed class FakeGame : ICookGame
         from.Remove(stack);
 
         if (toOwnerId == Workbench) Pot.Add(stack with { OwnerId = Workbench, Place = "Pot" });
+        else if (IdlePots.TryGetValue(toOwnerId, out var idlePot)) idlePot.Add(stack with { OwnerId = toOwnerId, Place = "Pot" });
         else Stock.Add(stack with { OwnerId = toOwnerId, Place = toOwnerId == Bag ? "Bag" : "Chest" });
 
         if (toOwnerId == Workbench) Origins[instanceId] = fromOwnerId;

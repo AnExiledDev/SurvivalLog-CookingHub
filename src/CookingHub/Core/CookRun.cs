@@ -267,7 +267,7 @@ public static class CookRun
     }
 
     /// <summary>How many takes went in in full; it stops at the first the game refused, or gave short.</summary>
-    private static int MoveIn(ICookGame game, IReadOnlyList<Take> takes, long workbenchId)
+    internal static int MoveIn(ICookGame game, IReadOnlyList<Take> takes, long workbenchId)
     {
         var moved = 0;
 

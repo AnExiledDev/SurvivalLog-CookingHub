@@ -8,12 +8,12 @@ using System.Text.Json;
 namespace CookingHub.Core;
 
 /// <summary>
-/// What the session keeps for the open stove: the dish it last started (null when none this game start), and the start
-/// token, which counts up once per Repeat last that should also start the stove (0 for none).
+/// What the session keeps for the open stove: the dish it last started (null when none this game start), the start
+/// token, which counts up once per filled pot that should also start the stove (0 for none), and its queued dishes.
 /// </summary>
-public sealed record StationExtras(int? Last, int Start)
+public sealed record StationExtras(int? Last, int Start, IReadOnlyList<int> Queue)
 {
-    public static readonly StationExtras None = new(null, 0);
+    public static readonly StationExtras None = new(null, 0, Array.Empty<int>());
 }
 
 /// <summary>
@@ -54,6 +54,8 @@ public static class CookView
         else json.WriteNull("last");
 
         json.WriteNumber("start", station.Start);
+        WriteIds(json, "queue", station.Queue);
+        json.WriteBoolean("queueFull", station.Queue.Count >= CookQueue.Limit);
         WriteIds(json, "ids", advice.Lines.Select(line => line.RecipeId));
         json.WriteStartArray("lines");
 

@@ -241,7 +241,7 @@
   // Best first, the order the odds are drawn in, with the colours the game gives each quality.
   var TIER_ORDER = [3, 2, 1, 0];
   var TIER_COLOR = ['#8a8a8a', 'rgba(255,255,255,.6)', 'var(--q-good)', 'var(--q-perfect)'];
-  var STATION_TABS = [['book', 'tabBook'], ['now', 'tabNow'], ['pantry', 'tabPantry']];
+  var STATION_TABS = [['book', 'tabBook'], ['now', 'tabNow'], ['queue', 'tabQueue'], ['pantry', 'tabPantry']];
   var STATION_FILTERS = [['all', 'fAll'], ['load', 'fCanLoad'], ['new', 'fNew'], ['locked', 'fLocked']];
   // Sort keys: an index into a dish's gives (satiety, morale, stamina, health, vitality), or the Perfect chance.
   var STATION_SORTS = [['none', 'sNone'], [0, 'sSatiety'], [2, 'sStamina'], [1, 'sMorale'], [3, 'sHealth'], [4, 'sVitality'], ['quality', 'sQuality']];
@@ -411,6 +411,7 @@
     return {
       book: 0,
       now: cookNowDishes().length,
+      queue: (overlay.queue || []).length,
       pantry: (overlay.pantry || []).filter(function (s) { return s.spoiled > 0 || (s.hours != null && s.hours <= SPOILING_HOURS); }).length
     };
   }
@@ -497,8 +498,8 @@
     return (words + ' ' + food.join(' ')).toLowerCase().indexOf(needle) >= 0;
   }
 
-  // Where the food is or what is missing, a bar of the odds, the Perfect chance, and Load when the game's own fill
-  // would refuse (its rows only count the bag) but the player's storages cover the dish.
+  // Where the food is or what is missing, a bar of the odds, the Perfect chance, Load when the game's own fill would
+  // refuse (its rows only count the bag) but the player's storages cover the dish, and Queue on every learned dish.
   function decorateRow(doc, row, recipe, dish) {
     var key = String(overlayVersion);
 
@@ -525,10 +526,21 @@
       row.insertBefore(make(doc, 'span', 'ch-pp ' + OURS, dish.chances[3] + '%'), gameButton);
     }
 
-    if (recipe.status !== 0 || recipe.craftLocked || isGroup || dish.state !== 'ready') return;
+    if (recipe.craftLocked || isGroup || dish.state === 'locked') return;
 
-    row.className = row.className.split(' ').filter(function (name) { return name !== 'insuff'; }).join(' ') + ' fillable ch-storage';
-    row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+    if (recipe.status === 0 && dish.state === 'ready') {
+      row.className = row.className.split(' ').filter(function (name) { return name !== 'insuff'; }).join(' ') + ' fillable ch-storage';
+      row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+    }
+
+    addQueueButton(doc, row, dish.id);
+  }
+
+  // Queue, beside Load: the dish is cooked on this stove once its finished dishes are taken out.
+  function addQueueButton(doc, row, id) {
+    if (overlay.queueFull) return;
+
+    row.appendChild(pageButton(doc, 'span', 'ch-x', say('queue'), function () { sendAction('queue|' + id); }));
   }
 
   // A live HTMLCollection has no array methods.
@@ -594,6 +606,7 @@
     fresh.setAttribute('data-key', key);
 
     if (station.tab === 'now') fillNow(doc, fresh, win);
+    else if (station.tab === 'queue') fillQueue(doc, fresh, win);
     else fillPantry(doc, fresh, win);
 
     if (view) view.remove();
@@ -638,6 +651,28 @@
       if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
 
       row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+      addQueueButton(doc, row, dish.id);
+      view.appendChild(row);
+    });
+  }
+
+  // This stove's queue in the order it cooks, each with what its food needs and a button to take it off.
+  function fillQueue(doc, view, win) {
+    var queue = overlay.queue || [];
+    var byId = bookById();
+
+    view.appendChild(make(doc, 'div', 'ch-sub', queue.length ? say('queueNote') : say('queueNone')));
+
+    queue.forEach(function (id, i) {
+      var recipe = recipeOf(id);
+      var dish = byId[id];
+      var row = viewRow(doc, recipe, (i + 1) + '. ' + recipe.name, dish ? whereLine(doc, dish) : null, dish && dish.state === 'ready' ? 'fillable' : 'insuff');
+
+      if (dish) addGives(doc, row.children[1], dish.gives);
+
+      recipeTip(doc, win, row, id);
+      row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('waiting')));
+      row.appendChild(pageButton(doc, 'span', 'ch-x', say('unqueue'), function () { sendAction('unqueue|' + id); }));
       view.appendChild(row);
     });
   }

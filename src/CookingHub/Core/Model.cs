@@ -173,4 +173,16 @@ public interface ICookGame
 
     /// <summary>Puts one unit of a fuel stack into a free fuel slot of the stove. False when the game refused.</summary>
     bool AddFuel(long furnitureId, long instanceId);
+
+    /// <summary>Home stoves ready for their next dish: not cooking, nothing finished waiting in them, the pot empty. Hot pots are left out.</summary>
+    IReadOnlyList<IdleStove> IdleStoves();
+
+    /// <summary>Starts the stove on what its pot holds, as the dish among recipeIds the pot makes. False when it did not start.</summary>
+    bool Start(long furnitureId, IReadOnlyList<int> recipeIds);
 }
+
+/// <summary>
+/// A home stove ready for its next dish. IsOpen is true while its cooking screen is open, so the screen's own Cook
+/// button starts it; HasHeat is false for a stove out of fuel or power.
+/// </summary>
+public sealed record IdleStove(Stove Stove, bool IsOpen, bool HasHeat);

@@ -49,6 +49,13 @@ public static class Texts
     public static readonly Phrase ToastSource = new("Cooking Hub", "烹饪中心");
     public static readonly Phrase DishStored = new("Put {0} away in {1}.", "已把{0}放进{1}。");
     public static readonly Phrase DishStays = new("{0} stays in the stove: no storage tagged for it has room.", "{0}留在灶具里：没有带相应标签的储物放得下。");
+    public static readonly Phrase Queued = new("Queued {0}.", "已将{0}加入队列。");
+    public static readonly Phrase QueueFull = new("The queue is full.", "队列已满。");
+    public static readonly Phrase Unqueued = new("Removed {0} from the queue.", "已将{0}移出队列。");
+    public static readonly Phrase QueueStarted = new("Started {0} from the queue on {1}.", "已从队列开始在{1}做{0}。");
+    public static readonly Phrase QueueNotStarted = new("Filled {1} for {0} from the queue, but it did not start. Start it by hand.", "已从队列为{0}在{1}放好食材，但没有开始烹饪。请手动开始。");
+    public static readonly Phrase QueueNoHeat = new("{0} has dishes queued but no fuel or power.", "{0}有排队的菜，但没有燃料或电力。");
+    public static readonly Phrase QueueShort = new("{0} has dishes queued but not enough fresh food for any of them.", "{0}有排队的菜，但新鲜食材不够做其中任何一道。");
     public static readonly Phrase Starting = new("The pot is filled for {0}. Starting it.", "已为{0}放好食材，正在开始烹饪。");
 
     public static readonly Phrase Bag = new("Bag", "背包");
@@ -95,6 +102,12 @@ public static class Texts
         ("fNew", new("New", "新菜")),
         ("missing", new("Missing: {0}", "缺少：{0}")),
         ("load", new("Load", "放入")),
+        ("queue", new("Queue", "排队")),
+        ("unqueue", new("Remove", "移除")),
+        ("tabQueue", new("Queued", "队列")),
+        ("waiting", new("waiting", "等待中")),
+        ("queueNote", new("This stove cooks these in order once its dishes are cleared out. A dish short of food waits while the next one cooks.", "这个灶具里的菜被取走后，会按顺序做这些菜。食材不够的菜会等待，先做下一道。")),
+        ("queueNone", new("Nothing queued for this stove. Press Queue on a dish to add it; an idle, empty stove starts it right away.", "没有为这个灶具排队的菜。点击菜品的「排队」即可加入；空闲的空灶具会马上开始做。")),
         ("spoiledWord", new("spoiled", "已变质")),
         ("nowNote", new("From your bag and every storage. Food that spoils soonest first.", "来自背包和所有储物。最快变质的食材排在前面。")),
         ("nowNone", new("Nothing this stove can make from your food right now.", "现在你的食材做不了这个灶具能做的菜。")),

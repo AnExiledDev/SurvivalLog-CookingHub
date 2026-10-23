@@ -2,12 +2,13 @@
 
 Know what you can cook and how good it will turn out before you light the stove. Cooking Hub shows the chance of each quality right on the game's cooking screen, with the reasons and one-press fixes, lists every dish the stove can make from your food, and fills a pot with food from your bag and home storages.
 
-Open any stove, juicer, microwave, oven or coffee machine and its cooking screen gains tabs, a searchable recipe book with odds, a Load button that pulls food from storage, Repeat last and a fuel top up.
+Open any stove, juicer, microwave, oven or coffee machine and its cooking screen gains tabs, a searchable recipe book with odds, a Load button that pulls food from storage, a cooking queue, Repeat last and a fuel top up.
 
 ## Features
 
 - **A better cooking screen**: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Both can be sorted by Satiety, Stamina, Morale, Fitness, Life or Quality. Cook now and Pantry cards, and the pot cards of known dishes, show what each dish or food restores, one icon per stat. Hovering a card shows the cooking screen's tooltip, Info Pack's details included. Pantry lists all your cooking food with how much you have and puts one of any food in the pot with a click.
 - **Load from storage**: a recipe the game calls short because it only counts your bag gets a Load button when your storages cover it. Food already in the pot goes back where it came from first. Once your cooking level lets one pot cook several dishes, Load adds the dish beside what is there when it fits. Load uses the food closest to spoiling first, or the freshest first if you prefer (setting `FillSpoilingFirst`).
+- **Cooking queue**: a Queue button beside Load, on Recipe Book rows and Cook now cards, adds the dish to that stove's queue (up to 20). Once the stove's finished dishes are taken out and its pot is empty, the stove is filled for the first queued dish your food covers and started, from your bag and storages, with its screen open or closed. A dish short of food waits while the next one cooks. The Queued tab lists the queue in order, with Remove on each dish. The stove needs fuel in it, or power for an electric one. Queues last until you leave the game. Pairs well with Put dishes away.
 - **Repeat last**: refills an empty stove with the dish it last started and starts it again.
 - **Top up from storage**: fills the free fuel slots with the fuel the stove already burns, from your bag and storages. Put the first fuel in by hand so the mod knows which kind.
 - **Put dishes away** (setting `PutDishesAway`, off by default): a finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away. A dish no tagged storage has room for stays in the stove. With Exiled's Toolkit, each dish put away shows a toast.
@@ -46,7 +47,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 
 Built against BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.5.4 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
+Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.6.0 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
 
 ## Feedback and bug reports
 

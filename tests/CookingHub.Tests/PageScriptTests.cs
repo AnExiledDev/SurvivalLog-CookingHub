@@ -294,7 +294,7 @@ public class PageScriptTests
     [Fact]
     public void Repeat_last_shows_on_an_idle_empty_stove_and_asks_for_the_last_dish()
     {
-        var page = Station(Stocked(), new StationExtras(PorkRice, 0));
+        var page = Station(Stocked(), new StationExtras(PorkRice, 0, Array.Empty<int>()));
 
         Assert.Contains("Pork Rice", page.Text("cookingPage().getElementById('ch-repeat').textContent"));
 
@@ -310,13 +310,13 @@ public class PageScriptTests
 
         game.Pot.Add(S(8, Rice, owner: Workbench));
 
-        var page = Station(game, new StationExtras(PorkRice, 7));
+        var page = Station(game, new StationExtras(PorkRice, 7, Array.Empty<int>()));
 
         page.Poll();
 
         Assert.Equal("1", page.Text("cookPresses"));
 
-        var busy = Station(game, new StationExtras(PorkRice, 9), isCooking: true);
+        var busy = Station(game, new StationExtras(PorkRice, 9, Array.Empty<int>()), isCooking: true);
 
         Assert.Equal("0", busy.Text("cookPresses"));
     }
@@ -337,12 +337,56 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void The_cooking_screen_has_no_Queued_tab()
+    public void The_cooking_screen_has_a_Queued_tab_counting_the_stove_queue()
+    {
+        var page = Station(Stocked(), new StationExtras(null, 0, new[] { StirFry, PorkRice }));
+
+        Assert.Equal("Recipe Book,Cook now,Queued,Pantry", page.Text("cookingPage().querySelectorAll('.ch-tab').map(function (t) { return t.getAttribute('data-label').split('|')[0]; }).join(',')"));
+        Assert.Equal("2", page.Text(StationTab("Queued") + ".getAttribute('data-label').split('|')[1]"));
+    }
+
+    [Fact]
+    public void Queue_sits_beside_Load_on_book_rows_and_cook_now_cards_and_asks_for_that_dish()
     {
         var page = Station(Stocked());
 
-        Assert.Equal("Recipe Book,Cook now,Pantry", page.Text("cookingPage().querySelectorAll('.ch-tab').map(function (t) { return t.getAttribute('data-label').split('|')[0]; }).join(',')"));
+        Assert.Equal("Load,Queue", page.Text("cookingPage().querySelectorAll('.book-item')[0].querySelectorAll('.ch-st').filter(function (b) { return b.classList.contains('interactive-btn'); }).map(function (b) { return b.textContent; }).join(',')"));
+
+        page.Click(QueueOnBookRow(1));
+
+        Assert.Equal(new PageCommand.Queue(StirFry), Assert.Single(page.Sent));
+
+        page.Status("Queued Stir Fry.");
+        page.Click(StationTab("Cook now"));
+        page.Click(ViewRow("Pork Rice") + ".querySelector('.ch-x')");
+
+        Assert.Equal(new PageCommand.Queue(PorkRice), page.Sent[1]);
     }
+
+    [Fact]
+    public void A_full_queue_offers_no_Queue_button()
+    {
+        var page = Station(Stocked(), new StationExtras(null, 0, Enumerable.Repeat(StirFry, CookQueue.Limit).ToList()));
+
+        Assert.Equal(0, Count(page, "cookingPage().querySelectorAll('.book-item')[1].querySelectorAll('.ch-x')"));
+    }
+
+    [Fact]
+    public void The_Queued_tab_lists_the_queue_in_order_and_Remove_takes_one_off()
+    {
+        var page = Station(Stocked(), new StationExtras(null, 0, new[] { StirFry, PorkRice }));
+
+        page.Click(StationTab("Queued"));
+
+        Assert.Equal("1. Stir Fry", page.Text("cookingPage().querySelector('.ch-view').querySelectorAll('.book-nm')[0].textContent"));
+        Assert.Equal("2. Pork Rice", page.Text("cookingPage().querySelector('.ch-view').querySelectorAll('.book-nm')[1].textContent"));
+
+        page.Click(ViewRow("Pork Rice") + ".querySelector('.ch-x')");
+
+        Assert.Equal(new PageCommand.Unqueue(PorkRice), Assert.Single(page.Sent));
+    }
+
+    private static string QueueOnBookRow(int index) => $"cookingPage().querySelectorAll('.book-item')[{index}].querySelector('.ch-x')";
 
     [Fact]
     public void Load_sends_one_press_until_the_plugin_answers()

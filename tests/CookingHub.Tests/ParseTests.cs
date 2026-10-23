@@ -13,6 +13,8 @@ public class ParseTests
         Assert.Equal(new PageCommand.Add(30), PageCommand.Parse("slmod|cookinghub|add|30"));
         Assert.Equal(new PageCommand.Add(30), PageCommand.Parse("slmod|cookinghub|season|30"));
         Assert.Equal(new PageCommand.Repeat(), PageCommand.Parse("slmod|cookinghub|repeat"));
+        Assert.Equal(new PageCommand.Queue(12), PageCommand.Parse("slmod|cookinghub|queue|12"));
+        Assert.Equal(new PageCommand.Unqueue(12), PageCommand.Parse("slmod|cookinghub|unqueue|12"));
         Assert.Equal(new PageCommand.TopUp(), PageCommand.Parse("slmod|cookinghub|topup"));
         Assert.Equal(new PageCommand.Swap(20), PageCommand.Parse("slmod|cookinghub|swap|20"));
         Assert.Equal(new PageCommand.Note("a|b"), PageCommand.Parse("slmod|cookinghub|diag|a|b"));
@@ -23,7 +25,8 @@ public class ParseTests
     [InlineData("slmod|cookinghub|fill|-3")]
     [InlineData("slmod|cookinghub|fill|abc")]
     [InlineData("slmod|cookinghub|fill")]
-    [InlineData("slmod|cookinghub|queue|12")]
+    [InlineData("slmod|cookinghub|queue|0")]
+    [InlineData("slmod|cookinghub|unqueue")]
     [InlineData("slmod|cookinghub|next")]
     [InlineData("slmod|cookinghub|toggle")]
     [InlineData("slmod|cookinghub|repeat|3")]

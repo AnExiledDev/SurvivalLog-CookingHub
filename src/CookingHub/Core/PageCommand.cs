@@ -30,6 +30,12 @@ public abstract record PageCommand
     /// <summary>Fill the open stove's empty pot for the dish it cooked last.</summary>
     public sealed record Repeat : PageCommand;
 
+    /// <summary>Put a dish at the end of the open stove's queue.</summary>
+    public sealed record Queue(int RecipeId) : PageCommand;
+
+    /// <summary>Take a dish out of the open stove's queue.</summary>
+    public sealed record Unqueue(int RecipeId) : PageCommand;
+
     /// <summary>Fill the open stove's free fuel slots from the bag and storage.</summary>
     public sealed record TopUp : PageCommand;
 
@@ -56,6 +62,8 @@ public abstract record PageCommand
             ("fill", 2) when TryId(parts[1], out var recipeId) => new Fill(recipeId),
             ("add" or "season", 2) when TryId(parts[1], out var itemId) => new Add(itemId),
             ("repeat", 1) => new Repeat(),
+            ("queue", 2) when TryId(parts[1], out var recipeId) => new Queue(recipeId),
+            ("unqueue", 2) when TryId(parts[1], out var recipeId) => new Unqueue(recipeId),
             ("topup", 1) => new TopUp(),
             ("swap", 2) when TryId(parts[1], out var itemId) => new Swap(itemId),
             _ => null,

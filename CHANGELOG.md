@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- The cooking queue is back, on the cooking screen. Queue, beside Load on Recipe Book rows and Cook now cards, adds a dish to that stove's queue. Once the stove's finished dishes are taken out, it is filled for the first queued dish your food covers and started, even with its screen closed. A dish short of food waits while the next one cooks. The Queued tab lists the queue, with Remove on each dish.
+
 ## 0.5.4
 
 - Load, the recipe book and fuel top up no longer use food or fuel staged in the neighbor's basket, and Put dishes away never puts a dish into it.
