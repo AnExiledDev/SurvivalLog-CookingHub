@@ -210,7 +210,7 @@ internal sealed class CookSession
                 else _keyboard.Release();
                 break;
             case PageCommand.Fill fill:
-                Press($"fill {fill.RecipeId}", () => CookRun.Fill(_game, fill.RecipeId, _isSpoilingFirst, IsChinese));
+                Press($"fill {fill.RecipeId}", () => CookRun.Fill(_game, fill.RecipeId, _isSpoilingFirst, IsChinese, _queue));
                 break;
             case PageCommand.Add add:
                 Press($"add {add.ItemId}", () => CookRun.Add(_game, add.ItemId, IsChinese));
@@ -240,7 +240,7 @@ internal sealed class CookSession
     {
         if (_game.Read() is not CookRead.Ready { Kitchen: { Stove: { } stove } kitchen }) return new Pressed(false, Texts.NoStove.Pick(IsChinese));
 
-        var (queue, pressed) = _queue.Press(kitchen.Book, stove.FurnitureId, recipeId, isAdding, IsChinese);
+        var (queue, pressed) = _queue.Press(kitchen, stove.FurnitureId, recipeId, isAdding, _isSpoilingFirst, IsChinese);
 
         _queue = queue;
         _nextQueueAt = 0f;
@@ -251,7 +251,7 @@ internal sealed class CookSession
     /// <summary>Fills the pot for the dish this stove last started, then asks the page to press the game's own Cook button.</summary>
     private Pressed Repeat()
     {
-        var pressed = CookRun.Repeat(_game, _last, _isSpoilingFirst, IsChinese);
+        var pressed = CookRun.Repeat(_game, _last, _isSpoilingFirst, IsChinese, _queue);
 
         if (!pressed.IsDone || _book == null || _last.WatchedId is not { } stoveId || _last.For(stoveId) is not { } recipeId) return pressed;
 
@@ -291,7 +291,7 @@ internal sealed class CookSession
     /// <summary>The odds on the game's cooking screen, sent only when they changed. The catalog goes first, since nudges name items by id.</summary>
     private void SendOverlay(Kitchen? kitchen)
     {
-        var overlay = kitchen?.Stove is { } stove ? CookView.Overlay(kitchen, stove, _isShowingOdds, Extras(stove)) : CookView.NoOverlay();
+        var overlay = kitchen?.Stove is { } stove ? CookView.Overlay(kitchen, stove, _isShowingOdds, Extras(kitchen, stove)) : CookView.NoOverlay();
 
         if (overlay == _shownOverlay) return;
         if (kitchen != null) SendCatalog(kitchen.Book);
@@ -299,11 +299,12 @@ internal sealed class CookSession
     }
 
     /// <summary>The start token goes out only while the pot forecasts the dish asked for, so a pot the game half filled is never started.</summary>
-    private StationExtras Extras(Stove stove)
+    private StationExtras Extras(Kitchen kitchen, Stove stove)
     {
         var isStarting = _startUntil > 0f && _startStoveId == stove.FurnitureId && _last.Pending is { } pending && _startIds.Contains(pending);
+        var reserved = _queue.IsEmpty ? null : Reservation.Of(kitchen, _queue, _isSpoilingFirst, stove.SlotsByUnit);
 
-        return new StationExtras(_last.For(stove.FurnitureId), isStarting ? _startToken : 0, _queue.For(stove.FurnitureId));
+        return new StationExtras(_last.For(stove.FurnitureId), isStarting ? _startToken : 0, _queue.For(stove.FurnitureId), reserved);
     }
 
     /// <summary>A stove's id means nothing in another save, so the queues go when the game is left.</summary>

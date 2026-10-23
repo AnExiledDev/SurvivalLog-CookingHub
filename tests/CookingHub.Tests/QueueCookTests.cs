@@ -58,7 +58,7 @@ public class QueueCookTests
     [Fact]
     public void A_dish_not_yet_learned_or_one_the_stove_cannot_cook_is_passed_over()
     {
-        var game = new FakeGame { IsStoveOpen = false, Stock = { S(1, Rice), S(2, Pork, count: 3), S(3, Wheat) } };
+        var game = new FakeGame { IsStoveOpen = false, Stock = { S(1, Rice), S(2, Pork, count: 3), S(3, Wheat), S(4, Pork) } };
 
         game.AddIdle(Kitchen, "Kitchen Stove", allowed: new[] { StirFry, FancyStirFry, Feast });
 
@@ -163,5 +163,33 @@ public class QueueCookTests
 
         Assert.Equal(Porch, turn.StoveId);
         Assert.Empty(game.IdlePots[Kitchen]);
+    }
+
+    [Fact]
+    public void A_stove_never_cooks_food_set_aside_for_another_stove_queue()
+    {
+        var game = new FakeGame { IsStoveOpen = false, Stock = { S(1, Rice), S(2, Pork), S(3, Wheat) } };
+
+        game.AddIdle(Porch, "Porch Stove");
+
+        var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, PorkRice).Add(Porch, StirFry)));
+
+        Assert.Equal(QueueStep.Waiting, turn.Step);
+        Assert.Empty(game.IdlePots[Porch]);
+        Assert.Contains(game.Stock, stack => stack.InstanceId == 2);
+    }
+
+    [Fact]
+    public void A_stove_cooks_with_the_food_set_aside_for_its_own_dish()
+    {
+        var game = new FakeGame { IsStoveOpen = false, Stock = { S(1, Rice, hours: 10), S(2, Rice, hours: 50), S(3, Pork), S(4, Pork) } };
+
+        game.AddIdle(Porch, "Porch Stove");
+
+        var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, PorkRice).Add(Porch, PorkRice)));
+
+        Assert.Equal(QueueStep.Started, turn.Step);
+        Assert.Equal(new long[] { 2, 4 }, InPot(game, Porch));
+        Assert.Contains(game.Stock, stack => stack.InstanceId == 1);
     }
 }

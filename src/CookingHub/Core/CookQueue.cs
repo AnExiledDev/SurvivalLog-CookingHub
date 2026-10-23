@@ -30,11 +30,17 @@ public sealed record CookQueue(IReadOnlyDictionary<long, IReadOnlyList<int>> ByS
         return index < 0 ? this : With(stoveId, ids.Where((_, i) => i != index).ToList());
     }
 
-    /// <summary>Queue presses on the open stove: the queue after the press, and the line shown for it.</summary>
-    public (CookQueue Queue, Pressed Pressed) Press(Cookbook book, long stoveId, int recipeId, bool isAdding, bool isChinese)
+    /// <summary>
+    /// Queue presses on the open stove: the queue after the press, and the line shown for it. A dish is queued only when
+    /// the food left after every dish already queued, on any stove, covers it.
+    /// </summary>
+    public (CookQueue Queue, Pressed Pressed) Press(Kitchen kitchen, long stoveId, int recipeId, bool isAdding, bool isSpoilingFirst, bool isChinese)
     {
-        if (!book.Recipes.TryGetValue(recipeId, out var recipe)) return (this, new Pressed(false, Texts.NoRecipe.Pick(isChinese)));
+        if (!kitchen.Book.Recipes.TryGetValue(recipeId, out var recipe)) return (this, new Pressed(false, Texts.NoRecipe.Pick(isChinese)));
         if (isAdding && IsFull(stoveId)) return (this, new Pressed(false, Texts.QueueFull.Pick(isChinese)));
+        if (isAdding && kitchen.Stove is { } stove && !stove.Takes(recipeId)) return (this, new Pressed(false, Texts.StoveRefuses.Say(isChinese, recipe.Name)));
+        if (isAdding && CookRun.Plan(kitchen, recipe, isSpoilingFirst) == null) return (this, new Pressed(false, Texts.NotEnough.Say(isChinese, recipe.Name)));
+        if (isAdding && !Reservation.Of(kitchen, this, isSpoilingFirst, kitchen.Stove?.SlotsByUnit ?? false).Covers(recipe)) return (this, new Pressed(false, Texts.SetAside.Say(isChinese, recipe.Name)));
 
         return isAdding
             ? (Add(stoveId, recipeId), new Pressed(true, Texts.Queued.Say(isChinese, recipe.Name)))

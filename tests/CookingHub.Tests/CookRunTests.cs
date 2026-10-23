@@ -346,4 +346,35 @@ public class CookRunTests
     {
         Assert.Equal("锅已经满了。", CookRun.Add(new FakeGame { MaxFood = 0 }, Salt, true).Message);
     }
+
+    [Fact]
+    public void Load_leaves_food_set_aside_for_a_queued_dish_alone_and_says_so()
+    {
+        var game = new FakeGame { Stock = { S(1, Rice), S(2, Pork) } };
+        var pressed = CookRun.Fill(game, PorkRice, true, false, CookQueue.Empty.Add(801, PorkRice));
+
+        Assert.False(pressed.IsDone);
+        Assert.Equal("The food for Pork Rice is set aside for queued dishes.", pressed.Message);
+        Assert.Empty(game.Pot);
+    }
+
+    [Fact]
+    public void Load_fills_from_the_food_no_queued_dish_holds()
+    {
+        var game = new FakeGame { Stock = { S(1, Rice, hours: 10), S(2, Rice, hours: 50), S(3, Pork), S(4, Pork) } };
+
+        Assert.True(CookRun.Fill(game, PorkRice, true, false, CookQueue.Empty.Add(801, PorkRice)).IsDone);
+        Assert.Equal(new long[] { 2, 4 }, InPot(game));
+    }
+
+    [Fact]
+    public void Repeat_last_leaves_food_set_aside_for_a_queued_dish_alone()
+    {
+        var game = new FakeGame { Stock = { S(1, Rice), S(2, Pork) } };
+        var last = new LastCooked(new Dictionary<long, int> { [StoveId] = PorkRice }, null, null, false);
+        var pressed = CookRun.Repeat(game, last, true, false, CookQueue.Empty.Add(801, PorkRice));
+
+        Assert.False(pressed.IsDone);
+        Assert.Empty(game.Pot);
+    }
 }

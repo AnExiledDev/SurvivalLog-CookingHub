@@ -434,4 +434,33 @@ public class PageScriptTests
     }
 
     private static string LoadOn(string name) => ViewRow(name) + ".querySelector('.st-fill')";
+
+    [Fact]
+    public void A_dish_only_set_aside_food_covers_offers_no_Load_or_Queue_and_says_why()
+    {
+        var game = Stocked();
+        var reserved = Reservation.Of(game.Kitchen(), CookQueue.Empty.Add(801, PorkRice), isSpoilingFirst: true, isByUnit: false);
+        var page = Station(game, new StationExtras(null, 0, Array.Empty<int>(), reserved));
+        var row = "cookingPage().querySelectorAll('.book-item')[0]";
+
+        Assert.Equal("", page.Text(row + ".querySelectorAll('.ch-st').filter(function (b) { return b.classList.contains('interactive-btn'); }).map(function (b) { return b.textContent; }).join(',')"));
+        Assert.Contains("set aside for the queue", page.Text(row + ".textContent"));
+
+        page.Click(StationTab("Cook now"));
+
+        Assert.Equal(0, Count(page, "cookingPage().querySelector('.ch-view').querySelectorAll('.book-item')"));
+    }
+
+    [Fact]
+    public void A_queued_dish_no_food_is_set_aside_for_shows_as_short()
+    {
+        var game = Stocked();
+        var queue = CookQueue.Empty.Add(StoveId, PorkRice).Add(StoveId, StirFry);
+        var reserved = Reservation.Of(game.Kitchen(), queue, isSpoilingFirst: true, isByUnit: false);
+        var page = Station(game, new StationExtras(null, 0, queue.For(StoveId), reserved));
+
+        page.Click(StationTab("Queued"));
+
+        Assert.Equal("waiting,short of food", page.Text("cookingPage().querySelector('.ch-view').querySelectorAll('.ch-sp').map(function (c) { return c.textContent; }).join(',')"));
+    }
 }

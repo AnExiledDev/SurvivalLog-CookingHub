@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+- Queued dishes keep their food. Queue shows only on dishes your food covers after every dish already queued, on any stove, and that food is set aside: Load, Repeat last and other stoves' queues leave it alone, so a queued dish no longer runs short because of another dish. A dish only set-aside food covers says "set aside for the queue" instead of Load and Queue, and leaves Cook now.
+- The Queued tab marks a dish "short of food" when its food spoiled or was used by hand; it waits while the next one cooks.
+
 ## 0.6.0
 
 - The cooking queue is back, on the cooking screen. Queue, beside Load on Recipe Book rows and Cook now cards, adds a dish to that stove's queue. Once the stove's finished dishes are taken out, it is filled for the first queued dish your food covers and started, even with its screen closed. A dish short of food waits while the next one cooks. The Queued tab lists the queue, with Remove on each dish.

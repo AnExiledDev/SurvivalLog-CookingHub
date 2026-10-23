@@ -9,9 +9,10 @@ namespace CookingHub.Core;
 
 /// <summary>
 /// What the session keeps for the open stove: the dish it last started (null when none this game start), the start
-/// token, which counts up once per filled pot that should also start the stove (0 for none), and its queued dishes.
+/// token, which counts up once per filled pot that should also start the stove (0 for none), its queued dishes, and the
+/// food set aside for every stove's queue (null when nothing is queued anywhere).
 /// </summary>
-public sealed record StationExtras(int? Last, int Start, IReadOnlyList<int> Queue)
+public sealed record StationExtras(int? Last, int Start, IReadOnlyList<int> Queue, Reservation? Reserved = null)
 {
     public static readonly StationExtras None = new(null, 0, Array.Empty<int>());
 }
@@ -41,7 +42,7 @@ public static class CookView
         WriteStation(json, kitchen, stove);
         json.WriteStartArray("book");
 
-        foreach (var dish in Finder.ForStove(kitchen, stove)) WriteBookRow(json, kitchen, stove, dish);
+        foreach (var dish in Finder.ForStove(kitchen, stove)) WriteBookRow(json, kitchen, stove, dish, station.Reserved);
 
         json.WriteEndArray();
         json.WriteStartArray("pantry");
@@ -55,6 +56,7 @@ public static class CookView
 
         json.WriteNumber("start", station.Start);
         WriteIds(json, "queue", station.Queue);
+        WriteQueueCovered(json, stove, station);
         json.WriteBoolean("queueFull", station.Queue.Count >= CookQueue.Limit);
         WriteIds(json, "ids", advice.Lines.Select(line => line.RecipeId));
         json.WriteStartArray("lines");
@@ -131,7 +133,7 @@ public static class CookView
     /// One recipe book row: whether the player's food covers it, where that food is, what is missing, the soonest any
     /// of it spoils, and the odds of cooking it fresh on this stove (null while locked).
     /// </summary>
-    private static void WriteBookRow(Utf8JsonWriter json, Kitchen kitchen, Stove stove, Dish dish)
+    private static void WriteBookRow(Utf8JsonWriter json, Kitchen kitchen, Stove stove, Dish dish, Reservation? reserved)
     {
         var sources = Finder.Sources(kitchen, dish);
         var soonest = sources.Select(stack => stack.HoursLeft).Where(hours => hours != null).Min();
@@ -141,6 +143,7 @@ public static class CookView
         json.WriteNumber("id", dish.Recipe.Id);
         json.WriteString("state", StateName(dish.State));
         json.WriteBoolean("isNew", dish.IsNew);
+        json.WriteBoolean("setAside", dish.State == Readiness.Ready && reserved != null && !reserved.Covers(dish.Recipe));
 
         if (odds != null) WriteChances(json, odds);
         else json.WriteNull("chances");
@@ -167,6 +170,16 @@ public static class CookView
         else json.WriteNull("hours");
 
         json.WriteEndObject();
+    }
+
+    /// <summary>For each dish queued on this stove, whether food is set aside for it; false means it waits for more food.</summary>
+    private static void WriteQueueCovered(Utf8JsonWriter json, Stove stove, StationExtras station)
+    {
+        json.WriteStartArray("queueCovered");
+
+        for (var index = 0; index < station.Queue.Count; index++) json.WriteBooleanValue(station.Reserved is not { } reserved || reserved.For(stove.FurnitureId, index) != null);
+
+        json.WriteEndArray();
     }
 
     /// <summary>An array of numbers, named, or unnamed when it is a value inside another array.</summary>

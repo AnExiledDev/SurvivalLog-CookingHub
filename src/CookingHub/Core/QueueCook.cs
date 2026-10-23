@@ -24,34 +24,51 @@ public sealed record QueueTurn(long StoveId, QueueStep Step, int? RecipeId, stri
 
 /// <summary>
 /// Cooks each stove's queue once its last dishes are cleared out: an idle home stove with an empty pot gets the first
-/// queued dish the player's fresh food covers, filled the way Load fills a pot, and is started. A dish short of food
+/// queued dish whose food is set aside (Reservation), filled with that food, and is started. A dish short of food
 /// stays queued and the next one is tried.
 /// </summary>
 public static class QueueCook
 {
-    /// <summary>One turn for each of the given idle stoves that has dishes queued.</summary>
+    /// <summary>
+    /// One turn for each of the given idle stoves that has dishes queued. Each stove cooks only food set aside for its own
+    /// queued dish, so no stove takes what another stove's queue is waiting on.
+    /// </summary>
     public static IReadOnlyList<QueueTurn> Run(ICookGame game, IReadOnlyList<IdleStove> idleStoves, CookQueue queue, bool isSpoilingFirst, bool isChinese)
     {
         var turns = new List<QueueTurn>();
 
         foreach (var idle in idleStoves)
         {
-            var queued = queue.For(idle.Stove.FurnitureId);
+            if (queue.For(idle.Stove.FurnitureId).Count == 0) continue;
 
-            if (queued.Count == 0) continue;
-
-            // Each fill uses up food, so the next stove plans from a fresh read.
+            // Each fill uses up food, so the next stove plans from a fresh read, without the dish just cooked.
             if (game.Read() is not CookRead.Ready { Kitchen: var kitchen }) break;
 
-            turns.Add(Turn(game, kitchen, idle, queued, isSpoilingFirst, isChinese));
+            var turn = Turn(game, kitchen, idle, queue, isSpoilingFirst, isChinese);
+
+            if (turn.RecipeId is { } cooked) queue = queue.Remove(turn.StoveId, cooked);
+
+            turns.Add(turn);
         }
 
         return turns;
     }
 
-    /// <summary>The first queued dish this stove can cook now from fresh food, or null.</summary>
-    public static Recipe? NextDish(Kitchen kitchen, Stove stove, IReadOnlyList<int> queued, bool isSpoilingFirst) =>
-        queued.Select(id => kitchen.Book.Recipes.TryGetValue(id, out var recipe) ? recipe : null).FirstOrDefault(recipe => recipe != null && CanCook(kitchen, stove, recipe, isSpoilingFirst));
+    /// <summary>The first queued dish this stove can cook now, with the food set aside for it, or null.</summary>
+    private static (Recipe Recipe, IReadOnlyList<Take> Takes)? NextDish(Kitchen kitchen, Stove stove, CookQueue queue, bool isSpoilingFirst)
+    {
+        var reservation = Reservation.Of(kitchen, queue, isSpoilingFirst, stove.SlotsByUnit);
+        var queued = queue.For(stove.FurnitureId);
+
+        for (var index = 0; index < queued.Count; index++)
+        {
+            var takes = reservation.For(stove.FurnitureId, index);
+
+            if (takes != null && kitchen.Book.Recipes.TryGetValue(queued[index], out var recipe) && CanCook(kitchen, stove, recipe, takes)) return (recipe, takes);
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The recipe ids the game is asked to start: the dish, then for a tag recipe every recipe wanting the same food
@@ -68,17 +85,14 @@ public static class QueueCook
         return new[] { recipe.Id }.Concat(siblings.Select(other => other.Id)).ToList();
     }
 
-    private static QueueTurn Turn(ICookGame game, Kitchen kitchen, IdleStove idle, IReadOnlyList<int> queued, bool isSpoilingFirst, bool isChinese)
+    private static QueueTurn Turn(ICookGame game, Kitchen kitchen, IdleStove idle, CookQueue queue, bool isSpoilingFirst, bool isChinese)
     {
         var stove = idle.Stove;
 
         if (!idle.HasHeat) return Wait(stove, Texts.QueueNoHeat.Say(isChinese, stove.Name));
+        if (NextDish(kitchen, stove, queue, isSpoilingFirst) is not { } next) return Wait(stove, Texts.QueueShort.Say(isChinese, stove.Name));
 
-        var recipe = NextDish(kitchen, stove, queued, isSpoilingFirst);
-        var takes = recipe == null ? null : CookRun.Plan(kitchen, recipe, isSpoilingFirst);
-
-        if (recipe == null || takes == null) return Wait(stove, Texts.QueueShort.Say(isChinese, stove.Name));
-
+        var (recipe, takes) = next;
         var moved = CookRun.MoveIn(game, takes, stove.WorkbenchId);
 
         if (moved < takes.Count) return Wait(stove, Texts.MovedSome.Say(isChinese, moved, takes.Count));
@@ -90,14 +104,11 @@ public static class QueueCook
     }
 
     /// <summary>The checks Load makes, and the game's own: the dish is learned, the stove cooks it, and its food fits the pot.</summary>
-    private static bool CanCook(Kitchen kitchen, Stove stove, Recipe recipe, bool isSpoilingFirst)
-    {
-        if (recipe.Id == Recipe.DarkFood || !recipe.IsUnlocked(kitchen.Level, kitchen.CraftUnlocked) || !stove.Takes(recipe.Id)) return false;
-
-        var takes = CookRun.Plan(kitchen, recipe, isSpoilingFirst);
-
-        return takes != null && CookRun.Slots(stove, takes) <= stove.MaxFood;
-    }
+    private static bool CanCook(Kitchen kitchen, Stove stove, Recipe recipe, IReadOnlyList<Take> takes) =>
+        recipe.Id != Recipe.DarkFood
+        && recipe.IsUnlocked(kitchen.Level, kitchen.CraftUnlocked)
+        && stove.Takes(recipe.Id)
+        && CookRun.Slots(stove, takes) <= stove.MaxFood;
 
     private static string TagKey(Recipe recipe) => string.Join(",", recipe.Tags.OrderBy(tag => tag));
 

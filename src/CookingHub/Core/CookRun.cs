@@ -16,9 +16,10 @@ public readonly record struct Pressed(bool IsDone, string Message);
 /// </summary>
 public static class CookRun
 {
-    public static Pressed Fill(ICookGame game, int recipeId, bool isSpoilingFirst, bool isChinese) => Reach(game, isChinese) switch
+    /// <summary>Fills the pot for the dish from food not set aside for the queue.</summary>
+    public static Pressed Fill(ICookGame game, int recipeId, bool isSpoilingFirst, bool isChinese, CookQueue? queue = null) => Reach(game, isChinese) switch
     {
-        Reached.Open open => Fill(game, open.Kitchen, open.Stove, recipeId, isSpoilingFirst, isChinese),
+        Reached.Open open => Fill(game, open.Kitchen, open.Stove, recipeId, isSpoilingFirst, isChinese, queue ?? CookQueue.Empty),
         Reached.Refused refused => refused.Pressed,
         _ => throw new System.InvalidOperationException("unknown reach"),
     };
@@ -32,9 +33,9 @@ public static class CookRun
     };
 
     /// <summary>Fills the empty pot for the dish this stove last started.</summary>
-    public static Pressed Repeat(ICookGame game, LastCooked last, bool isSpoilingFirst, bool isChinese) => Reach(game, isChinese) switch
+    public static Pressed Repeat(ICookGame game, LastCooked last, bool isSpoilingFirst, bool isChinese, CookQueue? queue = null) => Reach(game, isChinese) switch
     {
-        Reached.Open { Stove: var stove } open when last.For(stove.FurnitureId) is { } recipeId => Fill(game, open.Kitchen, stove, recipeId, isSpoilingFirst, isChinese),
+        Reached.Open { Stove: var stove } open when last.For(stove.FurnitureId) is { } recipeId => Fill(game, open.Kitchen, stove, recipeId, isSpoilingFirst, isChinese, queue ?? CookQueue.Empty),
         Reached.Open => No(Texts.NoLast, isChinese),
         Reached.Refused refused => refused.Pressed,
         _ => throw new System.InvalidOperationException("unknown reach"),
@@ -62,15 +63,16 @@ public static class CookRun
     /// <summary>
     /// A pot that already holds food keeps it and takes the dish as one more when the pot can cook several dishes at
     /// once (KeepsPot); otherwise its food goes back where it came from first, and the pot is filled from what is left.
+    /// Food set aside for queued dishes is left alone.
     /// </summary>
-    private static Pressed Fill(ICookGame game, Kitchen kitchen, Stove stove, int recipeId, bool isSpoilingFirst, bool isChinese)
+    private static Pressed Fill(ICookGame game, Kitchen kitchen, Stove stove, int recipeId, bool isSpoilingFirst, bool isChinese, CookQueue queue)
     {
         if (!kitchen.Book.Recipes.TryGetValue(recipeId, out var recipe)) return No(Texts.NoRecipe, isChinese);
         if (!stove.Takes(recipeId)) return new Pressed(false, Texts.StoveRefuses.Say(isChinese, recipe.Name));
 
-        var takes = Plan(kitchen, recipe, isSpoilingFirst);
+        var takes = Plan(Reservation.Of(kitchen, queue, isSpoilingFirst, stove.SlotsByUnit).Left, recipe, isSpoilingFirst);
 
-        if (takes == null) return new Pressed(false, Texts.NotEnough.Say(isChinese, recipe.Name));
+        if (takes == null) return Short(kitchen, recipe, isSpoilingFirst, isChinese);
 
         var slots = Slots(stove, takes);
 
@@ -81,7 +83,7 @@ public static class CookRun
 
         return Reach(game, isChinese) switch
         {
-            Reached.Open { Stove: { Pot: { Count: 0 } } } open => FillEmpty(game, open.Kitchen, open.Stove, recipe, isSpoilingFirst, isChinese),
+            Reached.Open { Stove: { Pot: { Count: 0 } } } open => FillEmpty(game, open.Kitchen, open.Stove, recipe, isSpoilingFirst, isChinese, queue),
             Reached.Open => No(Texts.EmptyRefused, isChinese),
             Reached.Refused refused => refused.Pressed,
             _ => throw new System.InvalidOperationException("unknown reach"),
@@ -89,14 +91,18 @@ public static class CookRun
     }
 
     /// <summary>The fill after the pot was emptied: the food that came out may be what the dish now takes.</summary>
-    private static Pressed FillEmpty(ICookGame game, Kitchen kitchen, Stove stove, Recipe recipe, bool isSpoilingFirst, bool isChinese)
+    private static Pressed FillEmpty(ICookGame game, Kitchen kitchen, Stove stove, Recipe recipe, bool isSpoilingFirst, bool isChinese, CookQueue queue)
     {
-        var takes = Plan(kitchen, recipe, isSpoilingFirst);
+        var takes = Plan(Reservation.Of(kitchen, queue, isSpoilingFirst, stove.SlotsByUnit).Left, recipe, isSpoilingFirst);
 
-        if (takes == null) return new Pressed(false, Texts.NotEnough.Say(isChinese, recipe.Name));
+        if (takes == null) return Short(kitchen, recipe, isSpoilingFirst, isChinese);
 
         return Load(game, stove, recipe, takes, Texts.Filled, isChinese);
     }
+
+    /// <summary>Why a fill found too little food: there is not enough at all, or the rest is set aside for queued dishes.</summary>
+    private static Pressed Short(Kitchen kitchen, Recipe recipe, bool isSpoilingFirst, bool isChinese) =>
+        new(false, (Plan(kitchen, recipe, isSpoilingFirst) == null ? Texts.NotEnough : Texts.SetAside).Say(isChinese, recipe.Name));
 
     private static Pressed Load(ICookGame game, Stove stove, Recipe recipe, IReadOnlyList<Take> takes, Phrase done, bool isChinese)
     {

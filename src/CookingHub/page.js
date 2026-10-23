@@ -480,8 +480,13 @@
     return byId;
   }
 
+  // The player's food covers the dish once the food set aside for queued dishes is left alone.
+  function isFree(dish) {
+    return !!dish && dish.state === 'ready' && !dish.setAside;
+  }
+
   function matchesFilter(recipe, dish) {
-    if (station.filter === 'load') return !!dish && dish.state === 'ready';
+    if (station.filter === 'load') return isFree(dish);
     if (station.filter === 'new') return !!dish && dish.isNew;
     if (station.filter === 'locked') return !!recipe.craftLocked || (!!dish && dish.state === 'locked');
 
@@ -499,7 +504,8 @@
   }
 
   // Where the food is or what is missing, a bar of the odds, the Perfect chance, Load when the game's own fill would
-  // refuse (its rows only count the bag) but the player's storages cover the dish, and Queue on every learned dish.
+  // refuse (its rows only count the bag) but the player's storages cover the dish, and Queue beside it. Food set aside
+  // for queued dishes does not count, and a dish only it covers says so instead.
   function decorateRow(doc, row, recipe, dish) {
     var key = String(overlayVersion);
 
@@ -528,12 +534,18 @@
 
     if (recipe.craftLocked || isGroup || dish.state === 'locked') return;
 
+    if (dish.setAside) {
+      row.appendChild(make(doc, 'span', 'ch-sp ch-dim ' + OURS, say('setAside')));
+
+      return;
+    }
+
     if (recipe.status === 0 && dish.state === 'ready') {
       row.className = row.className.split(' ').filter(function (name) { return name !== 'insuff'; }).join(' ') + ' fillable ch-storage';
       row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
     }
 
-    addQueueButton(doc, row, dish.id);
+    if (isFree(dish)) addQueueButton(doc, row, dish.id);
   }
 
   // Queue, beside Load: the dish is cooked on this stove once its finished dishes are taken out.
@@ -618,7 +630,7 @@
   // What this stove can make from the bag and every storage, the dish whose food spoils soonest first.
   // With a sort chosen, the dish that gives the most of it first.
   function cookNowDishes() {
-    return (overlay.book || []).filter(function (dish) { return dish.state === 'ready'; }).sort(function (a, b) {
+    return (overlay.book || []).filter(isFree).sort(function (a, b) {
       if (station.sort !== 'none') {
         var by = sortValue(b) - sortValue(a);
 
@@ -656,9 +668,11 @@
     });
   }
 
-  // This stove's queue in the order it cooks, each with what its food needs and a button to take it off.
+  // This stove's queue in the order it cooks, each with what its food needs and a button to take it off. A dish with
+  // no food set aside is short and waits.
   function fillQueue(doc, view, win) {
     var queue = overlay.queue || [];
+    var covered = overlay.queueCovered || [];
     var byId = bookById();
 
     view.appendChild(make(doc, 'div', 'ch-sub', queue.length ? say('queueNote') : say('queueNone')));
@@ -666,12 +680,13 @@
     queue.forEach(function (id, i) {
       var recipe = recipeOf(id);
       var dish = byId[id];
-      var row = viewRow(doc, recipe, (i + 1) + '. ' + recipe.name, dish ? whereLine(doc, dish) : null, dish && dish.state === 'ready' ? 'fillable' : 'insuff');
+      var isCovered = covered[i] !== false;
+      var row = viewRow(doc, recipe, (i + 1) + '. ' + recipe.name, dish ? whereLine(doc, dish) : null, isCovered ? 'fillable' : 'insuff');
 
       if (dish) addGives(doc, row.children[1], dish.gives);
 
       recipeTip(doc, win, row, id);
-      row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('waiting')));
+      row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say(isCovered ? 'waiting' : 'queueShortChip')));
       row.appendChild(pageButton(doc, 'span', 'ch-x', say('unqueue'), function () { sendAction('unqueue|' + id); }));
       view.appendChild(row);
     });

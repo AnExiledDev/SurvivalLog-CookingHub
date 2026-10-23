@@ -51,6 +51,7 @@ public static class Texts
     public static readonly Phrase DishStays = new("{0} stays in the stove: no storage tagged for it has room.", "{0}留在灶具里：没有带相应标签的储物放得下。");
     public static readonly Phrase Queued = new("Queued {0}.", "已将{0}加入队列。");
     public static readonly Phrase QueueFull = new("The queue is full.", "队列已满。");
+    public static readonly Phrase SetAside = new("The food for {0} is set aside for queued dishes.", "做{0}的食材已留给排队的菜。");
     public static readonly Phrase Unqueued = new("Removed {0} from the queue.", "已将{0}移出队列。");
     public static readonly Phrase QueueStarted = new("Started {0} from the queue on {1}.", "已从队列开始在{1}做{0}。");
     public static readonly Phrase QueueNotStarted = new("Filled {1} for {0} from the queue, but it did not start. Start it by hand.", "已从队列为{0}在{1}放好食材，但没有开始烹饪。请手动开始。");
@@ -106,7 +107,9 @@ public static class Texts
         ("unqueue", new("Remove", "移除")),
         ("tabQueue", new("Queued", "队列")),
         ("waiting", new("waiting", "等待中")),
-        ("queueNote", new("This stove cooks these in order once its dishes are cleared out. A dish short of food waits while the next one cooks.", "这个灶具里的菜被取走后，会按顺序做这些菜。食材不够的菜会等待，先做下一道。")),
+        ("queueShortChip", new("short of food", "食材不足")),
+        ("setAside", new("set aside for the queue", "已留给队列")),
+        ("queueNote", new("This stove cooks these in order once its dishes are cleared out. The food for each is set aside, so Load and other queues leave it alone. A dish short of food waits while the next one cooks.", "这个灶具里的菜被取走后，会按顺序做这些菜。每道菜的食材都已留好，「放入」和其他队列不会动用。食材不够的菜会等待，先做下一道。")),
         ("queueNone", new("Nothing queued for this stove. Press Queue on a dish to add it; an idle, empty stove starts it right away.", "没有为这个灶具排队的菜。点击菜品的「排队」即可加入；空闲的空灶具会马上开始做。")),
         ("spoiledWord", new("spoiled", "已变质")),
         ("nowNote", new("From your bag and every storage. Food that spoils soonest first.", "来自背包和所有储物。最快变质的食材排在前面。")),
