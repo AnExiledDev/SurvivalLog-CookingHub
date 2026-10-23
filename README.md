@@ -6,8 +6,8 @@ Open any stove, juicer, microwave, oven or coffee machine and its cooking screen
 
 ## Features
 
-- **A better cooking screen**: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Pantry puts one of any food in the pot with a click. Queued fills the dishes you queued in the window, one at a time.
-- **Load from storage**: a recipe the game calls short because it only counts your bag gets a Load button when your storages cover it.
+- **A better cooking screen**: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Both can be sorted by Satiety, Stamina, Morale, Health, Vitality or Quality. Pantry puts one of any food in the pot with a click. Queued fills the dishes you queued in the window, one at a time.
+- **Load from storage**: a recipe the game calls short because it only counts your bag gets a Load button when your storages cover it. Food already in the pot goes back where it came from first. Once your cooking level lets one pot cook several dishes, Load adds the dish beside what is there when it fits.
 - **Repeat last**: refills an empty stove with the dish it last started and starts it again.
 - **Top up from storage**: fills the free fuel slots with the fuel the stove already burns, from your bag and storages. Put the first fuel in by hand so the mod knows which kind.
 - **Queue**: press Queue on a dish in the window to line it up for later. The queue is kept between game starts and shared by every save.
@@ -26,6 +26,7 @@ Cooking Hub covers what ProjectCook's dish preview does. Use one or the other, n
 
 - Survival Log 1.1.19131. Built for this version; a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
+- Optional: [Stacking](https://www.nexusmods.com/survivallog/mods/74). Cooking Hub loads food Stacking made stackable one unit at a time, the way Stacking wants it. Without Stacking, nothing changes.
 - Optional: [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game, and put-away dishes show as toasts. Without it, they take effect at the next game start.
 
 ## Install
@@ -49,7 +50,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 
 Built against BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.2.0 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
+Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.4.0 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
 
 ## Known issues
 

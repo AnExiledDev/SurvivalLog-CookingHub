@@ -6,8 +6,8 @@ Know what you can cook and how good it will turn out before you light the stove.
 
 [size=5]Main features[/size]
 [list]
-[*][b]A better cooking screen[/b]: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Pantry puts one of any food in the pot with a click. Queued fills the dishes you queued in the window, one at a time.[/*]
-[*][b]Load from storage[/b]: a recipe the game calls short because it only counts your bag gets a Load button when your storages cover it.[/*]
+[*][b]A better cooking screen[/b]: the game's own stove screen gets tabs. Recipe Book adds a search box, filters (All, Can load, New, Locked), where each dish's food is or what is missing, a bar of its odds and its Perfect chance. Cook now lists what the stove can make from all your food, soonest to spoil first. Both can be sorted by Satiety, Stamina, Morale, Health, Vitality or Quality. Pantry puts one of any food in the pot with a click. Queued fills the dishes you queued in the window, one at a time.[/*]
+[*][b]Load from storage[/b]: a recipe the game calls short because it only counts your bag gets a Load button when your storages cover it. Food already in the pot goes back where it came from first. Once your cooking level lets one pot cook several dishes, Load adds the dish beside what is there when it fits.[/*]
 [*][b]Repeat last[/b]: refills an empty stove with the dish it last started and starts it again.[/*]
 [*][b]Top up from storage[/b]: fills the free fuel slots with the fuel the stove already burns, from your bag and storages. Put the first fuel in by hand so the mod knows which kind.[/*]
 [*][b]Queue[/b]: press Queue on a dish in the window to line it up for later. The queue is kept between game starts and shared by every save.[/*]
@@ -31,6 +31,7 @@ The queue is shared by every save, so a dish queued in one save still shows in a
 [list]
 [*]Survival Log 1.1.19131. A game update can break it until the mod is updated.[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]. Install it first.[/*]
+[*]Optional: [url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]. Cooking Hub loads food Stacking made stackable one unit at a time, the way Stacking wants it. Without Stacking, nothing changes.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game, and put-away dishes show as toasts. Without it, they take effect at the next game start.[/*]
 [/list]
 
@@ -64,8 +65,8 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CookingHu
 
 [size=5]主要功能[/size]
 [list]
-[*][b]更好的烹饪界面[/b]：游戏自己的灶具界面多出标签页。「菜谱」加入搜索框和筛选（全部、可以放入、新菜、未解锁），并显示每道菜的食材在哪里或缺少什么、品质概率条和完美概率。「现在能做」列出这个灶具用你所有食材能做的菜，最快变质的排在前面。「食材库存」点击任意食材即可放一份到锅里。「队列」逐道放入你在窗口中排队的菜。[/*]
-[*][b]从储物放入[/b]：游戏只计算背包，因此会把储物里有食材的菜显示为不足；只要储物够用，这些菜会出现「放入」按钮。[/*]
+[*][b]更好的烹饪界面[/b]：游戏自己的灶具界面多出标签页。「菜谱」加入搜索框和筛选（全部、可以放入、新菜、未解锁），并显示每道菜的食材在哪里或缺少什么、品质概率条和完美概率。「现在能做」列出这个灶具用你所有食材能做的菜，最快变质的排在前面。两者都可按饱腹、精力、心态、健康、生命或品质排序。「食材库存」点击任意食材即可放一份到锅里。「队列」逐道放入你在窗口中排队的菜。[/*]
+[*][b]从储物放入[/b]：游戏只计算背包，因此会把储物里有食材的菜显示为不足；只要储物够用，这些菜会出现「放入」按钮。锅里已有的食材会先放回原处。烹饪等级达到一锅可做多道菜后，只要放得下，「放入」会把新菜加在锅里已有的食材旁边。[/*]
 [*][b]重做上一道[/b]：锅空且没在烹饪时，把这个灶具上次做的菜重新放入并开始烹饪。[/*]
 [*][b]从储物补充燃料[/b]：用这个灶具正在烧的燃料，从背包和储物中填满空的燃料格。第一份燃料请手动放入，模组才知道用哪种。[/*]
 [*][b]排队[/b]：在窗口中点击菜品的「排队」，留到以后再做。队列在重启游戏后保留，所有存档共用。[/*]
@@ -87,6 +88,7 @@ Cooking Hub 包含 ProjectCook 菜品预览的功能，两者请只装一个。�
 [list]
 [*]Survival Log 1.1.19131。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]，请先安装。[/*]
+[*]可选：[url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]。Cooking Hub 会按 Stacking 的规则，把它变成可堆叠的食材一份一份放入锅中。未安装 Stacking 时不受影响。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.4.0 或更新版本。安装后，在 Mod Manager 的模组界面修改的设置无需重启游戏即可生效，自动收菜也会弹出提示；未安装时，在下次启动游戏时生效。[/*]
 [/list]
 

@@ -10,10 +10,12 @@ namespace CookingHub;
 
 [BepInPlugin(Guid, "Cooking Hub", Version)]
 [BepInDependency(OptionalLive.ToolkitGuid, BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency(StackingGuid, BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.3.1";
+    private const string Version = "0.4.0";
+    private const string StackingGuid = "com.dev.survivallog.stacking";
 
     public override void Load()
     {
@@ -44,6 +46,7 @@ public sealed class Plugin : BasePlugin
             game,
             new WebPage(log.Write),
             note => toasts.Show(note, GameLanguage.IsChinese()),
+            game.IsCookingScreenOpen,
             isOn => isSpoilingFirst.Value = isOn,
             isOn => isShowingOdds.Value = isOn,
             CookQueue.Read(File.Exists(queueFile) ? File.ReadAllText(queueFile) : null),

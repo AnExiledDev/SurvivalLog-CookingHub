@@ -65,6 +65,16 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void Fill_stays_open_on_a_pot_that_already_holds_food()
+    {
+        var game = Stocked();
+
+        game.Pot.Add(S(8, Wheat, owner: Workbench));
+
+        Assert.False(Opened(game).Is("panelButton('fill','1').disabled"));
+    }
+
+    [Fact]
     public void Fill_is_shut_while_the_stove_is_cooking_or_none_is_open()
     {
         var cooking = Stocked();
@@ -227,6 +237,60 @@ public class PageScriptTests
         page.Click("cookingPage().querySelectorAll('.book-item')[0].querySelector('.st-fill.ch-st')");
 
         Assert.Equal(new PageCommand.Fill(PorkRice), Assert.Single(page.Sent));
+    }
+
+    private static string SortChip(string word) => $"cookingPage().querySelector('.ch-sorts').querySelectorAll('.ch-chip').filter(function (c) {{ return c.textContent === '{word}'; }})[0]";
+
+    [Fact]
+    public void A_sort_chip_puts_the_book_row_whose_dish_gives_the_most_first_and_Default_undoes_it()
+    {
+        var page = Station(Stocked());
+
+        page.Click(SortChip("Satiety"));
+
+        Assert.True(page.Is("cookingPage().getElementById('recipeList').classList.contains('ch-sorted')"));
+        Assert.Equal("0", page.Text("cookingPage().querySelectorAll('.book-item')[1].style.order"));
+        Assert.Equal("2", page.Text("cookingPage().querySelectorAll('.book-item')[0].style.order"));
+
+        page.Click(SortChip("Default"));
+
+        Assert.False(page.Is("cookingPage().getElementById('recipeList').classList.contains('ch-sorted')"));
+        Assert.Equal("", page.Text("cookingPage().querySelectorAll('.book-item')[1].style.order"));
+    }
+
+    [Fact]
+    public void A_sort_chip_orders_the_cook_now_tab_by_what_the_dish_gives()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+        page.Click(SortChip("Stamina"));
+
+        Assert.StartsWith("Stir Fry", page.Text("cookingPage().querySelector('.ch-view').querySelectorAll('.book-nm')[0].textContent"));
+    }
+
+    [Fact]
+    public void Icons_on_the_cooking_screen_load_from_the_game_web_folder()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Pantry"));
+
+        Assert.Contains("https://game.local/Res/Item/rice.png", page.Text("cookingPage().querySelector('.ch-view').querySelectorAll('img').map(function (i) { return i.src; }).join(' ')"));
+    }
+
+    [Fact]
+    public void Load_next_shows_on_a_pot_that_already_holds_food()
+    {
+        var game = Stocked();
+
+        game.Pot.Add(S(8, Wheat, owner: Workbench));
+
+        var page = Station(game, new StationExtras(null, new[] { PorkRice }, 0));
+
+        page.Click(StationTab("Queued"));
+
+        Assert.Equal(1, Count(page, "cookingPage().querySelector('.ch-view').querySelectorAll('.st-fill')"));
     }
 
     [Fact]

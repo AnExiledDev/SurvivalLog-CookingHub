@@ -6,8 +6,11 @@ namespace CookingHub.Core;
 /// <summary>A food type, the game's Config_FoodType row: staple, meat, egg and dairy, fish, vegetable and so on.</summary>
 public sealed record FoodType(int Id, string Name, string? Icon);
 
-/// <summary>An item a recipe uses or makes. Type is the food type (0 for a dish or a non-food); Life is shelf life in days, 0 for none.</summary>
-public sealed record Item(int Id, string Name, string? Icon, int Type, int Life, bool CanCook);
+/// <summary>
+/// An item a recipe uses or makes. Type is the food type (0 for a dish or a non-food); Life is shelf life in days, 0 for
+/// none. Gives is what eating it restores, the item row's ValueDisplay1-5: satiety, morale, stamina, health, vitality.
+/// </summary>
+public sealed record Item(int Id, string Name, string? Icon, int Type, int Life, bool CanCook, IReadOnlyList<int>? Gives = null);
 
 /// <summary>
 /// One row of Config_CookingRecipe. An exact recipe names its items (Specific); a tag recipe names food types (Tags).
@@ -81,7 +84,8 @@ public sealed record Fuel(int Slots, int Used, IReadOnlyCollection<int> Preferre
 /// <summary>
 /// The cooking panel while it is open: the stove, what is in its pot (the workbench), how much fits, and the dishes the
 /// panel forecasts for it. Allowed is null when the stove takes every recipe. Fuel is null for a stove that burns none
-/// (a juicer, a microwave). HotPotSeconds is 0 when the stove's row gives no hot pot time.
+/// (a juicer, a microwave). HotPotSeconds is 0 when the stove's row gives no hot pot time. SlotsByUnit is true when
+/// each unit of a stack takes a slot of its own in the pot (the Stacking mod's rule), so a stack goes in a unit at a time.
 /// </summary>
 public sealed record Stove(
     long FurnitureId,
@@ -97,7 +101,8 @@ public sealed record Stove(
     string Name = "",
     float SpeedRate = 1f,
     int HotPotSeconds = 0,
-    Fuel? Fuel = null)
+    Fuel? Fuel = null,
+    bool SlotsByUnit = false)
 {
     private const int DefaultHotPotSeconds = 3600;
 
@@ -120,8 +125,17 @@ public sealed record Stove(
     public bool Takes(int recipeId) => Allowed == null || Allowed.Contains(recipeId);
 }
 
-/// <summary>The player's cooking: level, which recipes they have cooked, which they may cook, their food, and the open panel if any.</summary>
-public sealed record Kitchen(Cookbook Book, int Level, IReadOnlyCollection<int> Cooked, IReadOnlyCollection<int> CraftUnlocked, IReadOnlyList<Stack> Stock, Stove? Stove);
+/// <summary>
+/// The player's cooking: level, which recipes they have cooked, which they may cook, their food, and the open panel if
+/// any. MultiPotLevel is the cooking level from which one pot cooks several dishes at once (Config_GlobalSetting
+/// CookingMultiPot_UnlockLevel, 3 as shipped).
+/// </summary>
+public sealed record Kitchen(Cookbook Book, int Level, IReadOnlyCollection<int> Cooked, IReadOnlyCollection<int> CraftUnlocked, IReadOnlyList<Stack> Stock, Stove? Stove, int MultiPotLevel = Kitchen.ShippedMultiPotLevel)
+{
+    public const int ShippedMultiPotLevel = 3;
+
+    public bool IsMultiPot => Level >= MultiPotLevel;
+}
 
 /// <summary>What a read of the game found.</summary>
 public abstract record CookRead
@@ -147,6 +161,15 @@ public interface ICookGame
     /// is used up a little at a time. False when the game refused.
     /// </summary>
     bool MoveStack(long instanceId, long fromOwnerId, long toOwnerId);
+
+    /// <summary>
+    /// Puts up to that many units of a stack in the pot: one at a time when each unit takes a slot (Stove.SlotsByUnit),
+    /// else the whole stack at once. Answers how many units went in, the whole stack's count when it went in whole.
+    /// </summary>
+    int MoveUnits(long instanceId, long fromOwnerId, long toOwnerId, int units);
+
+    /// <summary>The owner a unit in the pot came from, when this mod put it there this session; null otherwise.</summary>
+    long? OriginOf(long instanceId);
 
     /// <summary>Puts one unit of a fuel stack into a free fuel slot of the stove. False when the game refused.</summary>
     bool AddFuel(long furnitureId, long instanceId);

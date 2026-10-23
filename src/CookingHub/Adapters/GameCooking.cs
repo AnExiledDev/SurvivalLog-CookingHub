@@ -21,7 +21,12 @@ internal sealed partial class GameCooking : ICookGame
     private const int BurnsFuelType = 1;
 
     private readonly Action<string> _log;
+    private const int MaxOrigins = 2000;
+
     private readonly HashSet<string> _reportedFailures = new();
+
+    /// <summary>Where each unit this mod put in a pot came from, by its instance id; main thread only.</summary>
+    private readonly Dictionary<long, long> _origins = new();
 
     private IconIndex? _icons;
     private (IntPtr Config, bool IsChinese) _catalogKey;
@@ -46,27 +51,100 @@ internal sealed partial class GameCooking : ICookGame
         }
     }
 
-    /// <summary>
-    /// ItemManager.OnCookingQuickMove, what the panel's quick move and recipe click both end in. It returns nothing, so
-    /// the move counts when what the pot side holds changed.
-    /// </summary>
+    /// <summary>A whole stack by the panel's quick move, for food coming out of the pot.</summary>
     public bool MoveStack(long instanceId, long fromOwnerId, long toOwnerId) => Press("move", () =>
     {
         var items = LoadedGame()?.World._ItemManager;
 
-        if (items == null) return false;
+        if (items == null || !QuickMove(items, instanceId, fromOwnerId, toOwnerId)) return false;
 
+        Ac_Cooking_RefreshBag.SendAction();
+
+        return true;
+    });
+
+    /// <summary>
+    /// With Stacking, each unit goes in by its one-unit move. That move puts the unit in under the stack's own id and
+    /// leaves the rest as a new stack in the same place, so the next unit comes off the stack that appeared there.
+    /// Without Stacking, or for a single item, the stack goes in whole by the panel's quick move.
+    /// </summary>
+    public int MoveUnits(long instanceId, long fromOwnerId, long toOwnerId, int units) => PressCount("move units", () =>
+    {
+        var items = LoadedGame()?.World._ItemManager;
+        var moved = 0;
+        var current = instanceId;
+
+        while (items != null && moved < units && items.GetItemData(current) is { ItemCount: > 0 } item)
+        {
+            var configId = item.ItemConfigId;
+            var count = item.ItemCount;
+            var before = IdsOf(items, fromOwnerId, configId);
+            var one = count >= 2 ? StackingUnits.MoveOne(current, fromOwnerId, toOwnerId) : null;
+
+            if (one == null)
+            {
+                if (QuickMove(items, current, fromOwnerId, toOwnerId)) moved += Remember(current, fromOwnerId, count);
+
+                break;
+            }
+
+            if (one == false)
+            {
+                _log($"stacking did not move a unit of stack {current} from {fromOwnerId} to {toOwnerId}");
+
+                break;
+            }
+
+            moved += Remember(current, fromOwnerId, 1);
+            current = IdsOf(items, fromOwnerId, configId).FirstOrDefault(id => !before.Contains(id));
+        }
+
+        if (moved > 0) Ac_Cooking_RefreshBag.SendAction();
+
+        return moved;
+    });
+
+    public long? OriginOf(long instanceId) => _origins.TryGetValue(instanceId, out var ownerId) ? ownerId : null;
+
+    /// <summary>Notes where a unit that went into a pot came from, so emptying the pot can put it back there.</summary>
+    private int Remember(long instanceId, long fromOwnerId, int units)
+    {
+        if (_origins.Count >= MaxOrigins) _origins.Clear();
+
+        _origins[instanceId] = fromOwnerId;
+
+        return units;
+    }
+
+    /// <summary>
+    /// ItemManager.OnCookingQuickMove, what the panel's quick move and recipe click both end in. It returns nothing, so
+    /// the move counts when what the target holds changed.
+    /// </summary>
+    private bool QuickMove(ItemManager items, long instanceId, long fromOwnerId, long toOwnerId)
+    {
         var before = Holding(items, toOwnerId);
 
         items.OnCookingQuickMove(instanceId, fromOwnerId, toOwnerId);
 
         var isMoved = Holding(items, toOwnerId) != before;
 
-        if (isMoved) Ac_Cooking_RefreshBag.SendAction();
-        else _log($"the game did not move stack {instanceId} from {fromOwnerId} to {toOwnerId}");
+        if (!isMoved) _log($"the game did not move stack {instanceId} from {fromOwnerId} to {toOwnerId}");
 
         return isMoved;
-    });
+    }
+
+    private static HashSet<long> IdsOf(ItemManager items, long ownerId, int configId)
+    {
+        var ids = new HashSet<long>();
+        var held = items.GetItemDataList(ownerId);
+
+        for (var i = 0; held != null && i < held.Count; i++)
+        {
+            if (held[i] is { } item && item.ItemConfigId == configId) ids.Add(item.InstanceId);
+        }
+
+        return ids;
+    }
 
     /// <summary>
     /// Furniture.OnCookingFuelAdd, what the panel's fuel slot drop sends: one unit of the stack goes into the stove's
@@ -115,7 +193,9 @@ internal sealed partial class GameCooking : ICookGame
         var craftUnlocked = book.Recipes.Keys.Where(record.IsCraftRecipeUnlocked).ToHashSet();
         var stove = ReadStove(items, config, agents, role.InstanceId, hour, places);
 
-        return new CookRead.Ready(new Kitchen(book, Math.Max(1, record.CookingLevel), cooked, craftUnlocked, stock, stove));
+        var multiPot = config.TryGet_Config_GlobalSetting("CookingMultiPot_UnlockLevel");
+
+        return new CookRead.Ready(new Kitchen(book, Math.Max(1, record.CookingLevel), cooked, craftUnlocked, stock, stove, multiPot == null ? Kitchen.ShippedMultiPotLevel : (int)multiPot.Params2));
     }
 
     private static (BattleLogicWorld World, ConfigManager Config, AgentManager Agents, LeadingRole Role)? LoadedGame()
@@ -190,7 +270,8 @@ internal sealed partial class GameCooking : ICookGame
             places.Name(state.CurrentFurnitureId),
             cook.SpeedRate,
             cook.HotPotCookTime,
-            ReadFuel(items, config, agents, cook, state.CurrentFurnitureId, roleId, hour, places));
+            ReadFuel(items, config, agents, cook, state.CurrentFurnitureId, roleId, hour, places),
+            StackingUnits.IsPresent);
     }
 
     /// <summary>
@@ -327,7 +408,7 @@ internal sealed partial class GameCooking : ICookGame
 
             var canCook = row.Category == FoodCategory && row.CanCook && row.CutProductId <= 0;
 
-            if (canCook || outputs.Contains(row.ID)) items[row.ID] = new Item(row.ID, ItemName(config, row), ItemIcon(row), row.SubCategory, row.Life, canCook);
+            if (canCook || outputs.Contains(row.ID)) items[row.ID] = new Item(row.ID, ItemName(config, row), ItemIcon(row), row.SubCategory, row.Life, canCook, Gives(row));
         }
 
         return items;
@@ -419,6 +500,20 @@ internal sealed partial class GameCooking : ICookGame
         }
     }
 
+    private int PressCount(string operation, Func<int> press)
+    {
+        try
+        {
+            return press();
+        }
+        catch (Exception ex)
+        {
+            ReportOnce(operation, ex);
+
+            return 0;
+        }
+    }
+
     private bool Press(string operation, Func<bool> press)
     {
         try
@@ -437,6 +532,28 @@ internal sealed partial class GameCooking : ICookGame
         Translate(config, item.ItemName) ?? NonEmpty(item.ItemName_Local) ?? NonEmpty(item.ItemName) ?? $"Item {item.ID}";
 
     private string? ItemIcon(Config_Item item) => Icons().Resolve(NonEmpty(item.WebIcon) ?? NonEmpty(item.Icon));
+
+    /// <summary>What eating the item restores, in the game's item tip order: satiety, morale, stamina, health, vitality.</summary>
+    private static int[] Gives(Config_Item item) =>
+        System.Array.ConvertAll(new[] { item.ValueDisplay1, item.ValueDisplay2, item.ValueDisplay3, item.ValueDisplay4, item.ValueDisplay5 }, value => (int)System.Math.Round(value));
+
+    /// <summary>
+    /// True while the game's cooking screen is up. Cheap enough for every frame, so the window's state is read the
+    /// moment the screen opens rather than at the next slow refresh.
+    /// </summary>
+    public bool IsCookingScreenOpen()
+    {
+        try
+        {
+            return GameSingleton.Existing<ReduxUISystem>() is { } ui && ui.IsUIActive(Il2CppType.Of<WebUI_Cooking>());
+        }
+        catch (Exception ex)
+        {
+            ReportOnce("cooking screen check", ex);
+
+            return false;
+        }
+    }
 
     private IconIndex Icons() => _icons ??= WebIcons.Load(_log);
 

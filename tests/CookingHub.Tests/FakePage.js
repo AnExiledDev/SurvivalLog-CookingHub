@@ -3,7 +3,7 @@
 // here ships.
 var window = this;
 
-var location = { protocol: 'https:' };
+var location = { protocol: 'https:', href: 'https://game.local/Root.html' };
 
 var intervals = [];
 
@@ -50,7 +50,16 @@ var FakeElement = class {
     this.disabled = false;
     this.scrollTop = 0;
     this.classList = {
-      contains: function (name) { return element.classes.indexOf(name) >= 0; }
+      contains: function (name) { return element.classes.indexOf(name) >= 0; },
+      toggle: function (name, isOn) {
+        var has = element.classes.indexOf(name) >= 0;
+
+        if (isOn === undefined) isOn = !has;
+        if (isOn && !has) element.classes.push(name);
+        if (!isOn && has) element.classes.splice(element.classes.indexOf(name), 1);
+
+        return isOn;
+      }
     };
   }
 

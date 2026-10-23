@@ -542,11 +542,12 @@
     return line;
   }
 
-  // Fill needs a stove's cooking screen open on an empty pot that is not cooking and can make the dish.
+  // Fill needs a stove's cooking screen open on a pot that is not cooking and can make the dish; food already in the
+  // pot is put back where it came from first.
   function canFill(d) {
     var stove = state.data.stove;
 
-    if (!stove || stove.cooking || !stove.potEmpty || d.state !== 'ready') return false;
+    if (!stove || stove.cooking || d.state !== 'ready') return false;
 
     return stove.takesAll || (stove.allowed || []).indexOf(d.id) >= 0;
   }
@@ -858,6 +859,8 @@
     '.ch-where{font-size:11px;margin-top:2px;color:#9fc88a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.ch-where.ch-miss{color:rgba(255,255,255,.4)}',
     '.ch-mini{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:4px;background:rgba(0,0,0,.5);width:100%}.ch-mini i{display:block;height:100%}',
+    '.ch-sorted>*{flex-shrink:0}',
+    '.ch-sorts{flex-wrap:wrap}.ch-sorts>.ch-sub{margin:0}',
     '.ch-pp{font-size:11px;color:var(--q-perfect);flex-shrink:0;width:34px;text-align:right}',
     '.book-item.ch-storage .st-fill{color:#111;background:var(--warm-gold);border-color:var(--warm-gold)}',
     '.ch-view{overflow-y:auto;height:0;min-height:0;flex-grow:1;display:flex;flex-direction:column;gap:6px;padding-right:5px}',
@@ -888,11 +891,13 @@
   var TIER_COLOR = ['#8a8a8a', 'rgba(255,255,255,.6)', 'var(--q-good)', 'var(--q-perfect)'];
   var STATION_TABS = [['book', 'tabBook'], ['now', 'tabNow'], ['pantry', 'tabPantry'], ['queue', 'tabQueue']];
   var STATION_FILTERS = [['all', 'fAll'], ['load', 'fCanLoad'], ['new', 'fNew'], ['locked', 'fLocked']];
+  // Sort keys: an index into a dish's gives (satiety, morale, stamina, health, vitality), or the Perfect chance.
+  var STATION_SORTS = [['none', 'sNone'], [0, 'sSatiety'], [2, 'sStamina'], [1, 'sMorale'], [3, 'sHealth'], [4, 'sVitality'], ['quality', 'sQuality']];
   // Marks everything drawn on the cooking screen, so it can all be taken off again.
   var OURS = 'ch-st';
 
   // What the player chose on the cooking screen; the version counts up with each choice so the views redraw.
-  var station = { tab: 'book', filter: 'all', search: '', version: 0, started: 0 };
+  var station = { tab: 'book', filter: 'all', sort: 'none', search: '', version: 0, started: 0 };
 
   function drawStation(doc, win) {
     if (!overlay.show || !overlay.book) {
@@ -992,8 +997,15 @@
     var tools = bar.children[1];
 
     tools.style.display = station.tab === 'book' || station.tab === 'now' ? '' : 'none';
-    kids(tools).slice(1).forEach(function (chip, i) {
+    kids(tools).slice(1, 1 + STATION_FILTERS.length).forEach(function (chip, i) {
       chip.className = 'ch-chip interactive-btn' + (station.filter === STATION_FILTERS[i][0] ? ' ch-on' : '');
+    });
+
+    var sorts = bar.children[2];
+
+    sorts.style.display = tools.style.display;
+    kids(sorts).slice(1).forEach(function (chip, i) {
+      chip.className = 'ch-chip interactive-btn' + (station.sort === STATION_SORTS[i][0] ? ' ch-on' : '');
     });
   }
 
@@ -1019,8 +1031,16 @@
       tools.appendChild(pageButton(doc, 'span', 'ch-chip', say(f[1]), function () { choose(function () { station.filter = f[0]; }); }));
     });
 
+    var sorts = make(doc, 'div', 'ch-tools ch-sorts');
+
+    sorts.appendChild(make(doc, 'span', 'ch-sub', say('sortBy')));
+    STATION_SORTS.forEach(function (o) {
+      sorts.appendChild(pageButton(doc, 'span', 'ch-chip', say(o[1]), function () { choose(function () { station.sort = o[0]; }); }));
+    });
+
     bar.appendChild(tabs);
     bar.appendChild(tools);
+    bar.appendChild(sorts);
 
     return bar;
   }
@@ -1043,21 +1063,51 @@
     var rows = kids(list).filter(function (child) { return child.classList.contains('book-item'); });
     var byId = bookById();
 
-    list.style.display = station.tab === 'book' ? '' : 'none';
+    var isSorted = station.sort !== 'none';
+
+    list.style.display = station.tab === 'book' ? (isSorted ? 'flex' : '') : 'none';
+    list.style.flexDirection = isSorted ? 'column' : '';
+    list.classList.toggle('ch-sorted', isSorted);
 
     if (rows.length !== recipes.length) return;
+
+    // Sorting moves rows by flex order, never in the page, so the game's own row counting still holds.
+    var order = rows.map(function (row, i) { return i; });
+
+    if (isSorted) {
+      order.sort(function (a, b) {
+        return sortValue(byId[recipes[b].recipeId]) - sortValue(byId[recipes[a].recipeId]) || a - b;
+      });
+    }
+
+    var place = {};
+
+    order.forEach(function (rowIndex, n) { place[rowIndex] = n; });
 
     rows.forEach(function (row, i) {
       var recipe = recipes[i];
       var dish = byId[recipe.recipeId];
       var isShown = matchesFilter(recipe, dish) && matchesSearch(recipe.name + ' ' + (recipe.costText || ''), dish);
       var variants = row.nextSibling;
+      var hasVariants = variants && variants.classList.contains('recipe-variants');
 
       decorateRow(doc, row, recipe, dish);
       row.style.display = isShown ? '' : 'none';
+      row.style.order = isSorted ? String(2 * place[i]) : '';
 
-      if (variants && variants.classList.contains('recipe-variants')) variants.style.display = isShown ? '' : 'none';
+      if (hasVariants) {
+        variants.style.display = isShown ? '' : 'none';
+        variants.style.order = isSorted ? String(2 * place[i] + 1) : '';
+      }
     });
+  }
+
+  // Higher is better; a dish with nothing known sorts last.
+  function sortValue(dish) {
+    if (!dish) return -Infinity;
+    if (station.sort === 'quality') return dish.chances ? dish.chances[3] : -1;
+
+    return dish.gives ? dish.gives[station.sort] : -1;
   }
 
   function bookById() {
@@ -1186,8 +1236,15 @@
   }
 
   // What this stove can make from the bag and every storage, the dish whose food spoils soonest first.
+  // With a sort chosen, the dish that gives the most of it first.
   function cookNowDishes() {
     return (overlay.book || []).filter(function (dish) { return dish.state === 'ready'; }).sort(function (a, b) {
+      if (station.sort !== 'none') {
+        var by = sortValue(b) - sortValue(a);
+
+        if (by) return by;
+      }
+
       return (a.hours == null ? Infinity : a.hours) - (b.hours == null ? Infinity : b.hours);
     });
   }
@@ -1242,7 +1299,7 @@
   // The dishes queued in the Cooking Hub window that this stove can cook; Load next fills the first one.
   function fillQueue(doc, view) {
     var queue = overlay.queue || [];
-    var canLoad = !overlay.cooking && overlay.potEmpty;
+    var canLoad = !overlay.cooking;
 
     view.appendChild(make(doc, 'div', 'ch-sub', queue.length ? say('queueNote') : say('queueNone')));
 
@@ -1267,7 +1324,7 @@
 
     if (thing.icon) {
       var img = make(doc, 'img');
-      img.src = thing.icon;
+      img.src = fromRoot(thing.icon);
       iconBox.appendChild(img);
     }
 
@@ -1279,6 +1336,16 @@
     row.appendChild(body);
 
     return row;
+  }
+
+  // Icon paths are relative to Root.html's folder (WebUI), and an image made by a game page would look for them below
+  // that page's own folder instead.
+  function fromRoot(path) {
+    var href = String(location.href || '');
+
+    if (/^[a-z]+:|^\//i.test(path) || href.indexOf('/') < 0) return path;
+
+    return href.slice(0, href.lastIndexOf('/') + 1) + path;
   }
 
   function spoilChip(doc, hours) {
@@ -1522,7 +1589,7 @@
     return node;
   }
 
-  setInterval(patchPagesSafely, 400);
+  setInterval(patchPagesSafely, 200);
 
   window.__slcookinghub = { open: open, setData: setData, close: close, status: status, live: setLive, catalog: catalog, badge: setBadge, cooking: setCooking };
   send('ready');

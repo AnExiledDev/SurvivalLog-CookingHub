@@ -22,6 +22,7 @@ internal sealed class CookSession
     private readonly IDishGame _dishes;
     private readonly WebPage _page;
     private readonly Func<DishNote, bool> _toast;
+    private readonly Func<bool> _isCookingScreenOpen;
     private readonly WebKeyboard _keyboard = new();
     private readonly Action<bool> _saveSpoilingFirst;
     private readonly Action<bool> _saveShowOdds;
@@ -40,6 +41,7 @@ internal sealed class CookSession
     private int? _sentBadge;
     private bool? _sentLive;
     private float _nextRefreshAt;
+    private bool _wasCookingScreenOpen;
 
     private CookQueue _queue;
     private LastCooked _last = LastCooked.None;
@@ -49,12 +51,13 @@ internal sealed class CookSession
     private float _nextDishSweepAt;
     private readonly HashSet<long> _toldStays = new();
 
-    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Func<DishNote, bool> toast, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
+    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Func<DishNote, bool> toast, Func<bool> isCookingScreenOpen, Action<bool> saveSpoilingFirst, Action<bool> saveShowOdds, CookQueue queue, Action<string> saveQueue, Action<string> log)
     {
         _game = game;
         _dishes = dishes;
         _page = page;
         _toast = toast;
+        _isCookingScreenOpen = isCookingScreenOpen;
         _saveSpoilingFirst = saveSpoilingFirst;
         _saveShowOdds = saveShowOdds;
         _queue = queue;
@@ -97,7 +100,19 @@ internal sealed class CookSession
         }
 
         if (_isPuttingDishesAway && now >= _nextDishSweepAt) PutDishesAway(now);
-        if (now >= _nextRefreshAt) Refresh(now);
+        if (now >= _nextRefreshAt || HasCookingScreenFlipped()) Refresh(now);
+    }
+
+    /// <summary>The game's cooking screen opening or closing is read at once, so the station view is drawn without waiting.</summary>
+    private bool HasCookingScreenFlipped()
+    {
+        var isOpen = _isCookingScreenOpen();
+
+        if (isOpen == _wasCookingScreenOpen) return false;
+
+        _wasCookingScreenOpen = isOpen;
+
+        return true;
     }
 
     /// <summary>
@@ -276,7 +291,7 @@ internal sealed class CookSession
         if (kitchen != null) _book = kitchen.Book;
         if (kitchen?.Stove is not { IsCooking: false } || now >= _startUntil) _startUntil = 0f;
 
-        _nextRefreshAt = now + (isStoveOpen ? StoveRefreshSeconds : _isOpen ? OpenRefreshSeconds : ClosedRefreshSeconds);
+        _nextRefreshAt = now + (isStoveOpen || _wasCookingScreenOpen ? StoveRefreshSeconds : _isOpen ? OpenRefreshSeconds : ClosedRefreshSeconds);
         SendLive(read is not CookRead.NoGame);
         SendBadge(kitchen == null ? 0 : Pantry.SpoilingSoon(kitchen, Finder.SpoilingHours));
         SendOverlay(kitchen);

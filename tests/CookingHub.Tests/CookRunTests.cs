@@ -56,14 +56,122 @@ public class CookRunTests
     }
 
     [Fact]
-    public void Fill_leaves_a_pot_that_already_holds_food_alone()
+    public void Fill_puts_food_already_in_the_pot_back_where_it_came_from_first()
+    {
+        var game = new FakeGame { Stock = { S(1, Rice, owner: Chest), S(2, Pork), S(3, Wheat, owner: Chest) } };
+
+        CookRun.Add(game, Wheat, false);
+
+        var pressed = CookRun.Fill(game, PorkRice, true, false);
+
+        Assert.True(pressed.IsDone);
+        Assert.Equal("The pot is filled for Pork Rice.", pressed.Message);
+        Assert.Equal(new long[] { 1, 2 }, InPot(game));
+        Assert.Contains(game.Stock, stack => stack.InstanceId == 3 && stack.OwnerId == Chest);
+    }
+
+    [Fact]
+    public void Fill_puts_pot_food_of_unknown_origin_in_the_bag()
     {
         var game = Stocked();
 
-        game.Pot.Add(S(9, Pork, owner: Workbench));
+        game.Pot.Add(S(9, Wheat, owner: Workbench));
 
-        Assert.Equal("Empty the pot first.", CookRun.Fill(game, PorkRice, true, false).Message);
+        Assert.True(CookRun.Fill(game, PorkRice, true, false).IsDone);
+        Assert.Equal(new long[] { 2, 3 }, InPot(game));
+        Assert.Contains(game.Stock, stack => stack.InstanceId == 9 && stack.OwnerId == Bag);
+    }
+
+    [Fact]
+    public void Fill_loads_nothing_when_the_pot_food_cannot_come_out()
+    {
+        var game = Stocked();
+
+        game.Pot.Add(S(9, Wheat, owner: Workbench));
+        game.Stuck.Add(9);
+
+        var pressed = CookRun.Fill(game, PorkRice, true, false);
+
+        Assert.False(pressed.IsDone);
+        Assert.Equal("The food in the pot could not be put back, so nothing was loaded.", pressed.Message);
         Assert.Equal(new long[] { 9 }, InPot(game));
+    }
+
+    [Fact]
+    public void Fill_at_the_multi_pot_level_adds_the_dish_beside_a_real_one()
+    {
+        var game = Stocked();
+
+        game.Level = Kitchen.ShippedMultiPotLevel;
+        game.Pot.Add(S(9, Wheat, owner: Workbench));
+        game.Pot.Add(S(8, Pork, owner: Workbench));
+        game.Forecasts.Add(new Forecast(StirFry, false, true));
+
+        var pressed = CookRun.Fill(game, PorkRice, true, false);
+
+        Assert.True(pressed.IsDone);
+        Assert.Equal("Added Pork Rice to the pot as one more dish.", pressed.Message);
+        Assert.Equal(new long[] { 2, 3, 8, 9 }, InPot(game));
+    }
+
+    [Fact]
+    public void Fill_below_the_multi_pot_level_empties_the_pot_instead()
+    {
+        var game = Stocked();
+
+        game.Level = Kitchen.ShippedMultiPotLevel - 1;
+        game.Pot.Add(S(9, Wheat, owner: Workbench));
+        game.Forecasts.Add(new Forecast(StirFry, false, true));
+
+        Assert.Equal("The pot is filled for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
+        Assert.Equal(new long[] { 2, 3 }, InPot(game));
+    }
+
+    [Fact]
+    public void Fill_empties_a_pot_headed_for_dark_food_even_at_the_multi_pot_level()
+    {
+        var game = Stocked();
+
+        game.Level = Kitchen.ShippedMultiPotLevel;
+        game.Pot.Add(S(9, Wheat, owner: Workbench));
+        game.Forecasts.Add(new Forecast(Recipe.DarkFood, false, true));
+
+        Assert.Equal("The pot is filled for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
+        Assert.Equal(new long[] { 2, 3 }, InPot(game));
+    }
+
+    [Fact]
+    public void Fill_empties_the_pot_when_the_second_dish_does_not_fit_beside_the_first()
+    {
+        var game = Stocked();
+
+        game.Level = Kitchen.ShippedMultiPotLevel;
+        game.MaxFood = 2;
+        game.Pot.Add(S(9, Wheat, owner: Workbench));
+        game.Forecasts.Add(new Forecast(StirFry, false, true));
+
+        Assert.Equal("The pot is filled for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
+        Assert.Equal(new long[] { 2, 3 }, InPot(game));
+    }
+
+    [Fact]
+    public void Fill_with_slots_by_unit_takes_only_the_units_the_recipe_wants()
+    {
+        var game = new FakeGame { SlotsByUnit = true, Stock = { S(1, Pork, count: 5) } };
+
+        Assert.True(CookRun.Fill(game, Feast, true, false).IsDone);
+        Assert.Equal(3, game.Pot.Count);
+        Assert.All(game.Pot, stack => Assert.Equal(1, stack.Count));
+        Assert.Equal(2, game.Stock.Single().Count);
+    }
+
+    [Fact]
+    public void Fill_with_slots_by_unit_counts_units_against_the_pot_size()
+    {
+        var game = new FakeGame { SlotsByUnit = true, MaxFood = 2, Stock = { S(1, Pork, count: 5) } };
+
+        Assert.Equal("Feast needs 3 slots and this stove has 2.", CookRun.Fill(game, Feast, true, false).Message);
+        Assert.Empty(game.Pot);
     }
 
     [Fact]

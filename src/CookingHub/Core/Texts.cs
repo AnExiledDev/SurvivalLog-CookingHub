@@ -26,7 +26,8 @@ public static class Texts
     public static readonly Phrase NoStove = new("Open a stove's cooking screen first.", "请先打开灶具的烹饪界面。");
     public static readonly Phrase Cooking = new("This stove is already cooking.", "这个灶具正在烹饪。");
     public static readonly Phrase NoRecipe = new("That recipe is not in the game's tables.", "游戏数据中没有这个菜谱。");
-    public static readonly Phrase PotNotEmpty = new("Empty the pot first.", "请先清空锅里的食材。");
+    public static readonly Phrase EmptyRefused = new("The food in the pot could not be put back, so nothing was loaded.", "锅里的食材放不回去，所以没有放入新食材。");
+    public static readonly Phrase AddedDish = new("Added {0} to the pot as one more dish.", "已把{0}作为又一道菜放进锅里。");
     public static readonly Phrase PotFull = new("The pot is full.", "锅已经满了。");
     public static readonly Phrase StoveRefuses = new("This stove can't cook {0}.", "这个灶具不能做{0}。");
     public static readonly Phrase TooBig = new("{0} needs {1} slots and this stove has {2}.", "{0}需要 {1} 格，这个灶具只有 {2} 格。");
@@ -83,6 +84,14 @@ public static class Texts
         ("fOne", new("Missing one", "差一样")),
         ("fShort", new("Missing more", "差几样")),
         ("fLocked", new("Locked", "未解锁")),
+        ("sortBy", new("Sort:", "排序：")),
+        ("sNone", new("Default", "默认")),
+        ("sSatiety", new("Satiety", "饱腹")),
+        ("sStamina", new("Stamina", "精力")),
+        ("sMorale", new("Morale", "心态")),
+        ("sHealth", new("Health", "健康")),
+        ("sVitality", new("Vitality", "生命")),
+        ("sQuality", new("Quality", "品质")),
         ("bNew", new("Never cooked", "从未做过")),
         ("bSpoiling", new("Uses food spoiling soon", "能用掉快变质的食材")),
         ("bVaries", new("Dish varies", "成品不定")),
@@ -138,7 +147,7 @@ public static class Texts
         ("nowNote", new("From your bag and every storage. Food that spoils soonest first.", "来自背包和所有储物。最快变质的食材排在前面。")),
         ("nowNone", new("Nothing this stove can make from your food right now.", "现在你的食材做不了这个灶具能做的菜。")),
         ("pantryNote", new("Click a food to put one in this pot from where it is stored.", "点击食材，从存放处放一份到锅里。")),
-        ("queueNote", new("Queued from the Cooking Hub window. When the pot is empty, Load next fills the first one.", "在烹饪中心窗口中排队。锅空时，「放入下一道」会放入第一道。")),
+        ("queueNote", new("Queued from the Cooking Hub window. Load next fills the first one, putting back any food already in the pot.", "在烹饪中心窗口中排队。「放入下一道」会放入第一道，并把锅里已有的食材放回原处。")),
         ("queueNone", new("Nothing queued for this stove. Queue dishes from the Cooking Hub window.", "没有为这个灶具排队的菜。可以在烹饪中心窗口中排队。")),
         ("queueKNote", new("Queued dishes wait for a stove: open one and its Queued tab fills them one at a time.", "排队的菜会等待灶具：打开灶具后，在其「队列」标签中逐道放入。")),
         ("queueKNone", new("Nothing queued. Press Queue on a dish to add it.", "队列为空。点击菜品的「排队」即可加入。")),

@@ -192,6 +192,7 @@ public static class CookView
         if (odds != null) WriteChances(json, odds);
         else json.WriteNull("chances");
 
+        WriteIds(json, "gives", DishGives.Expected(kitchen.Book, dish.Recipe, odds?.Chances));
         json.WriteStartArray("places");
 
         foreach (var place in sources.Select(stack => stack.Place).Distinct().OrderBy(place => place, StringComparer.Ordinal)) json.WriteStringValue(place);

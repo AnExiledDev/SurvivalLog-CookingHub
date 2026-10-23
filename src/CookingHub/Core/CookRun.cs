@@ -3,8 +3,8 @@ using System.Linq;
 
 namespace CookingHub.Core;
 
-/// <summary>One stack to move into the pot, kept by which owner.</summary>
-public readonly record struct Take(long InstanceId, long OwnerId, int ItemId, int Count);
+/// <summary>One stack to move into the pot, kept by which owner: Units of its Count are wanted.</summary>
+public readonly record struct Take(long InstanceId, long OwnerId, int ItemId, int Count, int Units);
 
 /// <summary>What a press did, as the line shown to the player. IsDone is false when nothing moved.</summary>
 public readonly record struct Pressed(bool IsDone, string Message);
@@ -12,7 +12,7 @@ public readonly record struct Pressed(bool IsDone, string Message);
 /// <summary>
 /// The presses that put food in the open cooking panel's pot: fill it for a dish or the next queued one, add one food,
 /// swap a spoiled item for a fresh one, and top the stove's fuel up. Food moves a stack at a time, the way the panel's
-/// own recipe click fills a pot, and a press stops at the first refusal.
+/// own recipe click fills a pot (a unit at a time where units never share a slot), and a press stops at the first refusal.
 /// </summary>
 public static class CookRun
 {
@@ -23,7 +23,7 @@ public static class CookRun
         _ => throw new System.InvalidOperationException("unknown reach"),
     };
 
-    /// <summary>Puts one fresh stack of a food in the pot, the one closest to spoiling, from wherever it is kept.</summary>
+    /// <summary>Puts one unit of a food in the pot, off the fresh stack closest to spoiling, from wherever it is kept.</summary>
     public static Pressed Add(ICookGame game, int itemId, bool isChinese) => Reach(game, isChinese) switch
     {
         Reached.Open open => Add(game, open.Kitchen, open.Stove, itemId, isChinese),
@@ -71,22 +71,80 @@ public static class CookRun
         _ => throw new System.InvalidOperationException("unknown reach"),
     };
 
+    /// <summary>
+    /// A pot that already holds food keeps it and takes the dish as one more when the pot can cook several dishes at
+    /// once (KeepsPot); otherwise its food goes back where it came from first, and the pot is filled from what is left.
+    /// </summary>
     private static Pressed Fill(ICookGame game, Kitchen kitchen, Stove stove, int recipeId, bool isSpoilingFirst, bool isChinese)
     {
         if (!kitchen.Book.Recipes.TryGetValue(recipeId, out var recipe)) return No(Texts.NoRecipe, isChinese);
-        if (stove.Pot.Count > 0) return No(Texts.PotNotEmpty, isChinese);
         if (!stove.Takes(recipeId)) return new Pressed(false, Texts.StoveRefuses.Say(isChinese, recipe.Name));
 
         var takes = Plan(kitchen, recipe, isSpoilingFirst);
 
         if (takes == null) return new Pressed(false, Texts.NotEnough.Say(isChinese, recipe.Name));
-        if (takes.Count > stove.MaxFood) return new Pressed(false, Texts.TooBig.Say(isChinese, recipe.Name, takes.Count, stove.MaxFood));
 
+        var slots = Slots(stove, takes);
+
+        if (slots > stove.MaxFood) return new Pressed(false, Texts.TooBig.Say(isChinese, recipe.Name, slots, stove.MaxFood));
+        if (stove.Pot.Count == 0) return Load(game, stove, recipe, takes, Texts.Filled, isChinese);
+        if (KeepsPot(kitchen, stove, slots)) return Load(game, stove, recipe, takes, Texts.AddedDish, isChinese);
+        if (!EmptyPot(game, stove)) return No(Texts.EmptyRefused, isChinese);
+
+        return Reach(game, isChinese) switch
+        {
+            Reached.Open { Stove: { Pot: { Count: 0 } } } open => FillEmpty(game, open.Kitchen, open.Stove, recipe, isSpoilingFirst, isChinese),
+            Reached.Open => No(Texts.EmptyRefused, isChinese),
+            Reached.Refused refused => refused.Pressed,
+            _ => throw new System.InvalidOperationException("unknown reach"),
+        };
+    }
+
+    /// <summary>The fill after the pot was emptied: the food that came out may be what the dish now takes.</summary>
+    private static Pressed FillEmpty(ICookGame game, Kitchen kitchen, Stove stove, Recipe recipe, bool isSpoilingFirst, bool isChinese)
+    {
+        var takes = Plan(kitchen, recipe, isSpoilingFirst);
+
+        if (takes == null) return new Pressed(false, Texts.NotEnough.Say(isChinese, recipe.Name));
+
+        return Load(game, stove, recipe, takes, Texts.Filled, isChinese);
+    }
+
+    private static Pressed Load(ICookGame game, Stove stove, Recipe recipe, IReadOnlyList<Take> takes, Phrase done, bool isChinese)
+    {
         var moved = MoveIn(game, takes, stove.WorkbenchId);
 
         return moved == takes.Count
-            ? new Pressed(true, Texts.Filled.Say(isChinese, recipe.Name))
+            ? new Pressed(true, done.Say(isChinese, recipe.Name))
             : new Pressed(moved > 0, Texts.MovedSome.Say(isChinese, moved, takes.Count));
+    }
+
+    /// <summary>
+    /// True when the food already in the pot stays and the dish goes in beside it: the cook's level unlocks cooking
+    /// several dishes in one pot, what is in it now forecasts real dishes (no dark food), and the free slots hold the
+    /// new dish's food.
+    /// </summary>
+    public static bool KeepsPot(Kitchen kitchen, Stove stove, int slots) =>
+        kitchen.IsMultiPot
+        && stove.Forecasts.Count > 0
+        && stove.Forecasts.All(forecast => forecast.RecipeId != Recipe.DarkFood)
+        && stove.Room >= slots;
+
+    /// <summary>The pot slots a fill takes: a slot per unit when units never share one, else a slot per stack.</summary>
+    public static int Slots(Stove stove, IReadOnlyList<Take> takes) => stove.SlotsByUnit ? takes.Sum(take => take.Units) : takes.Count;
+
+    /// <summary>Puts every stack in the pot back where this mod took it from, or in the panel's bag. False when one stayed.</summary>
+    private static bool EmptyPot(ICookGame game, Stove stove)
+    {
+        foreach (var stack in stove.Pot)
+        {
+            var origin = game.OriginOf(stack.InstanceId);
+            var isBack = origin is { } from && from != stove.BagId && game.MoveStack(stack.InstanceId, stove.WorkbenchId, from);
+
+            if (!isBack && !game.MoveStack(stack.InstanceId, stove.WorkbenchId, stove.BagId)) return false;
+        }
+
+        return true;
     }
 
     private static (Pressed, int?) Next(ICookGame game, Kitchen kitchen, Stove stove, CookQueue queue, bool isSpoilingFirst, bool isChinese)
@@ -132,7 +190,7 @@ public static class CookRun
 
         if (stack == null) return new Pressed(false, Texts.NoneLeft.Say(isChinese, kitchen.Book.ItemName(itemId)));
 
-        return game.MoveStack(stack.InstanceId, stack.OwnerId, stove.WorkbenchId)
+        return game.MoveUnits(stack.InstanceId, stack.OwnerId, stove.WorkbenchId, 1) > 0
             ? new Pressed(true, Texts.Added.Say(isChinese, kitchen.Book.ItemName(itemId)))
             : No(Texts.MoveRefused, isChinese);
     }
@@ -209,7 +267,10 @@ public static class CookRun
         return ordered.ThenBy(stack => stack.InstanceId);
     }
 
-    /// <summary>The first stacks, in order, whose units reach the want, or null when they all together fall short.</summary>
+    /// <summary>
+    /// The first stacks, in order, whose units reach the want, or null when they all together fall short. Each take
+    /// wants only the units still missing, so the last stack gives part of itself when units go in one at a time.
+    /// </summary>
     private static List<Take>? Cover(IEnumerable<Stack> ordered, int want)
     {
         var takes = new List<Take>();
@@ -219,20 +280,23 @@ public static class CookRun
         {
             if (units >= want) break;
 
-            takes.Add(new Take(stack.InstanceId, stack.OwnerId, stack.ItemId, stack.Count));
-            units += stack.Count;
+            var wanted = System.Math.Min(stack.Count, want - units);
+
+            takes.Add(new Take(stack.InstanceId, stack.OwnerId, stack.ItemId, stack.Count, wanted));
+            units += wanted;
         }
 
         return units >= want ? takes : null;
     }
 
+    /// <summary>How many takes went in in full; it stops at the first the game refused, or gave short.</summary>
     private static int MoveIn(ICookGame game, IReadOnlyList<Take> takes, long workbenchId)
     {
         var moved = 0;
 
         foreach (var take in takes)
         {
-            if (!game.MoveStack(take.InstanceId, take.OwnerId, workbenchId)) break;
+            if (game.MoveUnits(take.InstanceId, take.OwnerId, workbenchId, take.Units) < take.Units) break;
 
             moved++;
         }

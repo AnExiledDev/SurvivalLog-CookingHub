@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Icons show again on the cooking screen's Cook now, Pantry and Queued tabs.
+- Recipe Book and Cook now can be sorted by what the dish restores: Satiety, Stamina, Morale, Health or Vitality, or by Quality (the Perfect chance). Default keeps the game's order.
+- Load from storage works with Stacking installed. Food Stacking made stackable goes in one unit at a time, and only as many units as the recipe needs.
+- Loading a dish into a pot that already holds food puts that food back where it came from (or in the bag) and fills the pot for the new dish.
+- From the cooking level that lets one pot cook several dishes, Load adds the new dish beside what is already in the pot, as long as it fits and the pot is not headed for Dark Food.
+- The cooking screen switches to the new view sooner after it opens.
+
 ## 0.3.1
 
 - With Exiled's Toolkit installed, each dish put away shows a toast naming the dish and the storage. A dish left in the stove shows a warning toast. Without the Toolkit, the line shows on the cooking screen as before.

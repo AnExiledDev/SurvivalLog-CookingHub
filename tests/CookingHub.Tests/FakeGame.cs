@@ -23,7 +23,7 @@ internal sealed class FakeGame : ICookGame
     /// <summary>Exact: Rice and Pork. Learned from a book, not by level.</summary>
     public const int PorkRice = 1;
 
-    /// <summary>Tag: any grain and any meat. Its tier 3 sibling wants the same types, so the dish varies.</summary>
+    /// <summary>Tag: any grain and any meat, and always a Fancy Bowl. Its tier 3 sibling wants the same types, so the dish varies.</summary>
     public const int StirFry = 2;
 
     public const int FancyStirFry = 3;
@@ -50,14 +50,14 @@ internal sealed class FakeGame : ICookGame
             [Pork] = new(Pork, "Pork", null, Meat, 2, true),
             [Salt] = new(Salt, "Salt", null, Seasoning, 0, true),
             [Pepper] = new(Pepper, "Pepper", null, Seasoning, 0, true),
-            [Bowl] = new(Bowl, "Rice Bowl", "Res/Item/bowl.png", 0, 1, false),
-            [FancyBowl] = new(FancyBowl, "Fancy Bowl", "Res/Item/fancy.png", 0, 1, false),
+            [Bowl] = new(Bowl, "Rice Bowl", "Res/Item/bowl.png", 0, 1, false, new[] { 10, 1, 2, 0, 0 }),
+            [FancyBowl] = new(FancyBowl, "Fancy Bowl", "Res/Item/fancy.png", 0, 1, false, new[] { 40, 5, 8, 2, 1 }),
             [Firewood] = new(Firewood, "Firewood", null, 0, 0, false),
         },
         new Dictionary<int, Recipe>
         {
             [PorkRice] = R(PorkRice, "Pork Rice", specific: new[] { Rice, Pork }, outputs: new[] { Bowl, Bowl, Bowl, FancyBowl }),
-            [StirFry] = R(StirFry, "Stir Fry", tags: new[] { Grain, Meat }, tier: 2, craftLevel: 1),
+            [StirFry] = R(StirFry, "Stir Fry", tags: new[] { Grain, Meat }, tier: 2, craftLevel: 1, outputs: new[] { FancyBowl, FancyBowl, FancyBowl, FancyBowl }),
             [FancyStirFry] = R(FancyStirFry, "Fancy Stir Fry", tags: new[] { Meat, Grain }, tier: 3, craftLevel: 1),
             [Feast] = R(Feast, "Feast", specific: new[] { Pork, Pork, Pork }, craftLevel: 5),
             [Secret] = R(Secret, "Secret", specific: new[] { Rice }, craftLevel: 1, showLevel: 9),
@@ -67,6 +67,17 @@ internal sealed class FakeGame : ICookGame
         QualityRules.Shipped);
 
     public int Level { get; set; } = 2;
+
+    /// <summary>The cooking level from which one pot cooks several dishes.</summary>
+    public int MultiPotLevel { get; set; } = Core.Kitchen.ShippedMultiPotLevel;
+
+    /// <summary>Each unit of a stack takes its own pot slot, as with the Stacking mod: a stack goes in a unit at a time.</summary>
+    public bool SlotsByUnit { get; set; }
+
+    /// <summary>Where each stack in the pot was moved in from.</summary>
+    public Dictionary<long, long> Origins { get; } = new();
+
+    private long _nextId = 10_000;
 
     public List<int> Cooked { get; } = new();
 
@@ -116,10 +127,10 @@ internal sealed class FakeGame : ICookGame
         new(instanceId, itemId, count, owner, owner == Bag ? "Bag" : "Chest", hours, isSpoiled);
 
     public Kitchen Kitchen() =>
-        new(Book, Level, Cooked, CraftUnlocked, Stock.ToList(), IsStoveOpen ? OpenStove() : null);
+        new(Book, Level, Cooked, CraftUnlocked, Stock.ToList(), IsStoveOpen ? OpenStove() : null, MultiPotLevel);
 
     private Stove OpenStove() =>
-        new(StoveId, Workbench, Bag, MaxFood, false, IsCooking, 0, Allowed, Pot.ToList(), Forecasts.ToList(), "Stove", 1f, 0, BurnsFuel ? new Fuel(FuelSlots, FuelUsed, FuelPreferred.ToList(), FuelStock.ToList()) : null);
+        new(StoveId, Workbench, Bag, MaxFood, false, IsCooking, 0, Allowed, Pot.ToList(), Forecasts.ToList(), "Stove", 1f, 0, BurnsFuel ? new Fuel(FuelSlots, FuelUsed, FuelPreferred.ToList(), FuelStock.ToList()) : null, SlotsByUnit);
 
     public CookRead Read() => Override ?? new CookRead.Ready(Kitchen());
 
@@ -135,10 +146,43 @@ internal sealed class FakeGame : ICookGame
         from.Remove(stack);
 
         if (toOwnerId == Workbench) Pot.Add(stack with { OwnerId = Workbench, Place = "Pot" });
-        else Stock.Add(stack with { OwnerId = toOwnerId, Place = "Bag" });
+        else Stock.Add(stack with { OwnerId = toOwnerId, Place = toOwnerId == Bag ? "Bag" : "Chest" });
+
+        if (toOwnerId == Workbench) Origins[instanceId] = fromOwnerId;
 
         return true;
     }
+
+    /// <summary>
+    /// Moves units into the pot. With SlotsByUnit each unit goes in alone: it keeps the stack's id, and the rest stays
+    /// behind under a new id, the way Stacking splits a stack. Otherwise the stack goes in whole.
+    /// </summary>
+    public int MoveUnits(long instanceId, long fromOwnerId, long toOwnerId, int units)
+    {
+        var stack = Stock.FirstOrDefault(s => s.InstanceId == instanceId && s.OwnerId == fromOwnerId);
+
+        if (stack == null || Stuck.Contains(instanceId)) return 0;
+        if (!SlotsByUnit || toOwnerId != Workbench) return MoveStack(instanceId, fromOwnerId, toOwnerId) ? stack.Count : 0;
+
+        var moved = 0;
+
+        while (moved < units && stack != null)
+        {
+            Stock.Remove(stack);
+            Pot.Add(stack with { Count = 1, OwnerId = Workbench, Place = "Pot" });
+            Origins[stack.InstanceId] = fromOwnerId;
+            moved++;
+
+            if (stack.Count == 1) break;
+
+            stack = stack with { InstanceId = _nextId++, Count = stack.Count - 1 };
+            Stock.Add(stack);
+        }
+
+        return moved;
+    }
+
+    public long? OriginOf(long instanceId) => Origins.TryGetValue(instanceId, out var origin) ? origin : null;
 
     /// <summary>Burns one unit of the stack into a new fuel slot, the way Furniture.OnCookingFuelAdd does.</summary>
     public bool AddFuel(long furnitureId, long instanceId)
