@@ -272,8 +272,9 @@ public static class CookView
 }
 
 /// <summary>
-/// The catalog as the window needs it, sent once per game and language: food types, the items recipes use or make, and
-/// recipe names with the icon of their best dish.
+/// The catalog as the window needs it, sent once per game and language: food types, the items a pot takes or a recipe
+/// names, and recipe names with the icon of their best dish. The page names only food (the pantry, a recipe's missing
+/// food, a nudge), so the two thousand dishes recipes make stay out of it; a recipe's dish icon is written on the recipe.
 /// </summary>
 public static class CatalogView
 {
@@ -293,7 +294,9 @@ public static class CatalogView
         json.WriteEndArray();
         json.WriteStartArray("items");
 
-        foreach (var item in book.Items.Values.OrderBy(item => item.Id))
+        var named = new HashSet<int>(book.Recipes.Values.SelectMany(recipe => recipe.Specific));
+
+        foreach (var item in book.Items.Values.Where(item => item.CanCook || named.Contains(item.Id)).OrderBy(item => item.Id))
         {
             json.WriteStartObject();
             json.WriteNumber("id", item.Id);

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using CookingHub.Core;
 using UnityEngine;
 
@@ -31,7 +30,8 @@ internal sealed class CookSession
     private bool _isShowingOdds = true;
     private bool _isPuttingDishesAway;
 
-    private string _shownOverlay = "";
+    private readonly OverlayDelta _delta = new();
+    private ulong? _shownPrint;
     private Cookbook? _sentCatalog;
     private float _nextRefreshAt;
     private bool _wasCookingScreenOpen;
@@ -48,6 +48,7 @@ internal sealed class CookSession
     private readonly Dictionary<long, string> _toldWaiting = new();
     private float _nextDishSweepAt;
     private readonly HashSet<long> _toldStays = new();
+    private readonly DishRetry _dishRetry = new();
 
     public CookSession(ICookGame game, IDishGame dishes, WebPage page, Func<DishNote, bool> toast, Func<bool> isCookingScreenOpen, Action<string> log)
     {
@@ -97,14 +98,18 @@ internal sealed class CookSession
 
     /// <summary>
     /// Every few seconds, moves each finished dish out of its stove into the storage its tags want. Where each went is
-    /// shown as a toast when Exiled's Toolkit can show one, else on the page; a dish no storage takes is retried later
-    /// but told about only once.
+    /// shown as a toast when Exiled's Toolkit can show one, else on the page; a dish no storage takes is retried after a
+    /// wait but told about only once. The moves share one refresh of an open cooking screen.
     /// </summary>
     private void PutDishesAway(float now)
     {
         _nextDishSweepAt = now + DishSweepSeconds;
 
-        foreach (var stored in DishStore.PutAway(_dishes))
+        IReadOnlyList<Stored> results;
+
+        using (BagRefresh.Hold()) results = DishStore.PutAway(_dishes, _dishRetry, now);
+
+        foreach (var stored in results)
         {
             if (stored is Stored.Stays && !_toldStays.Add(stored.Dish.InstanceId)) continue;
 
@@ -118,22 +123,39 @@ internal sealed class CookSession
     /// <summary>
     /// Cooks the queues: a stove is taken once it has been seen idle with an empty pot on two checks in a row, so a pot
     /// the game is still emptying or filling is left alone. Waiting is told once per stove until its reason changes.
+    /// The pots filled in one go share one refresh of an open cooking screen, sent before the screen is read again.
     /// </summary>
     private void CookQueued(float now)
     {
         _nextQueueAt = now + QueueSeconds;
 
         var idle = _game.IdleStoves();
-        var settled = idle.Where(stove => _idleBefore.Contains(stove.Stove.FurnitureId)).ToList();
+        var settled = new List<IdleStove>();
 
-        _idleBefore = idle.Select(stove => stove.Stove.FurnitureId).ToHashSet();
+        foreach (var stove in idle)
+        {
+            if (_idleBefore.Contains(stove.Stove.FurnitureId)) settled.Add(stove);
+        }
+
+        _idleBefore.Clear();
+
+        foreach (var stove in idle) _idleBefore.Add(stove.Stove.FurnitureId);
 
         if (settled.Count == 0) return;
 
-        var turns = QueueCook.Run(_game, settled, _queue, _isSpoilingFirst, IsChinese);
+        IReadOnlyList<QueueTurn> turns;
 
-        foreach (var turn in turns) Take(turn, now);
-        if (turns.Any(turn => turn.Step != QueueStep.Waiting)) Refresh(now);
+        using (BagRefresh.Hold()) turns = QueueCook.Run(_game, settled, _queue, _isSpoilingFirst, IsChinese);
+
+        var hasActed = false;
+
+        foreach (var turn in turns)
+        {
+            Take(turn, now);
+            hasActed |= turn.Step != QueueStep.Waiting;
+        }
+
+        if (hasActed) Refresh(now);
     }
 
     private void Take(QueueTurn turn, float now)
@@ -262,7 +284,8 @@ internal sealed class CookSession
 
     private void ForgetSent()
     {
-        _shownOverlay = "";
+        _shownPrint = null;
+        _delta.Forget();
         _nextRefreshAt = 0f;
     }
 
@@ -309,23 +332,69 @@ internal sealed class CookSession
         SendOverlay(null);
     }
 
-    /// <summary>The odds on the game's cooking screen, sent only when they changed. The catalog goes first, since nudges name items by id.</summary>
+    /// <summary>
+    /// The odds on the game's cooking screen, sent only when they changed. A read that found the kitchen as it was skips
+    /// building the overlay at all; otherwise only the recipe book rows that changed go whole. The catalog goes first,
+    /// since nudges name items by id.
+    /// </summary>
     private void SendOverlay(Kitchen? kitchen)
     {
-        var overlay = kitchen?.Stove is { } stove ? CookView.Overlay(kitchen, stove, _isShowingOdds, Extras(kitchen, stove)) : CookView.NoOverlay();
+        ulong print;
+        string overlay;
 
-        if (overlay == _shownOverlay) return;
+        if (kitchen?.Stove is { } stove)
+        {
+            var start = StartToken(stove);
+            var last = _last.For(stove.FurnitureId);
+
+            print = OverlayPrint.Of(kitchen, _isShowingOdds, _isSpoilingFirst, _queue, last, start);
+
+            if (print == _shownPrint) return;
+
+            var reserved = _queue.IsEmpty ? null : Reservation.Of(kitchen, _queue, _isSpoilingFirst, stove.SlotsByUnit);
+
+            overlay = CookView.Overlay(kitchen, stove, _isShowingOdds, new StationExtras(last, start, _queue.For(stove.FurnitureId), reserved));
+        }
+        else
+        {
+            print = 0UL;
+
+            if (print == _shownPrint) return;
+
+            overlay = CookView.NoOverlay();
+        }
+
+        if (_delta.Next(overlay) is not { } patch)
+        {
+            _shownPrint = print;
+
+            return;
+        }
+
         if (kitchen != null) SendCatalog(kitchen.Book);
-        if (_page.Cooking(overlay)) _shownOverlay = overlay;
+
+        if (!_page.Cooking(patch.Json)) return;
+
+        _delta.Sent(patch);
+        _shownPrint = print;
     }
 
     /// <summary>The start token goes out only while the pot forecasts the dish asked for, so a pot the game half filled is never started.</summary>
-    private StationExtras Extras(Kitchen kitchen, Stove stove)
+    private int StartToken(Stove stove)
     {
-        var isStarting = _startUntil > 0f && _startStoveId == stove.FurnitureId && _last.Pending is { } pending && _startIds.Contains(pending);
-        var reserved = _queue.IsEmpty ? null : Reservation.Of(kitchen, _queue, _isSpoilingFirst, stove.SlotsByUnit);
+        var isStarting = _startUntil > 0f && _startStoveId == stove.FurnitureId && _last.Pending is { } pending && ContainsId(_startIds, pending);
 
-        return new StationExtras(_last.For(stove.FurnitureId), isStarting ? _startToken : 0, _queue.For(stove.FurnitureId), reserved);
+        return isStarting ? _startToken : 0;
+    }
+
+    private static bool ContainsId(IReadOnlyList<int> ids, int id)
+    {
+        foreach (var each in ids)
+        {
+            if (each == id) return true;
+        }
+
+        return false;
     }
 
     /// <summary>A stove's id means nothing in another save, so the queues go when the game is left.</summary>
@@ -342,14 +411,19 @@ internal sealed class CookSession
         if (_page.Catalog(CatalogView.Write(book))) _sentCatalog = book;
     }
 
-    /// <summary>Runs one press and shows what it did, then reads again so the pot and the odds show the change at once.</summary>
+    /// <summary>
+    /// Runs one press and shows what it did, then reads again so the pot and the odds show the change at once. The food
+    /// a press moves shares one refresh of the cooking screen, sent before the read.
+    /// </summary>
     private void Press(string name, Func<Pressed> press)
     {
         string message;
 
         try
         {
-            var pressed = press();
+            Pressed pressed;
+
+            using (BagRefresh.Hold()) pressed = press();
 
             message = pressed.Message;
             _log($"{name}: {(pressed.IsDone ? "done" : "refused")} -> {message}");

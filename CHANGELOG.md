@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.4
+
+- Less stutter when you click Load, Repeat last or a suggested seasoning, when the queue fills a stove, and when finished dishes are put away.
+- The cooking screen runs smoother while it is open. Only the recipes that changed are drawn again, and nothing is redrawn while nothing changes.
+- A finished dish that no storage has room for no longer causes a stutter every few seconds. The mod tries to put it away again every 30 seconds.
+
 ## 0.6.3
 
 - Less stutter: while the cooking screen is closed, the mod no longer reads every food in your storages every few seconds. With a stove open, each storage is looked up once per read instead of once per stack.

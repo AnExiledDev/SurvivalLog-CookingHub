@@ -95,6 +95,63 @@ public class DishStoreTests
         Assert.StartsWith("Pork Rice stays in the stove", DishStore.Describe(stored, isChinese: false));
     }
 
+    // Trying every full storage costs a game move apiece, so a dish with nowhere to go waits before it is tried again.
+    [Fact]
+    public void A_dish_that_stayed_is_not_tried_again_until_its_wait_is_over()
+    {
+        var game = new FakeDishes();
+        var retry = new DishRetry();
+
+        game.Shelves.Add(Tagged(Fridge, level: 0, specificity: 1));
+        game.Full.Add(Fridge);
+
+        Assert.IsType<Stored.Stays>(Assert.Single(DishStore.PutAway(game, retry, now: 100)));
+        Assert.Empty(DishStore.PutAway(game, retry, now: 100 + DishRetry.WaitSeconds - 1));
+
+        game.Full.Clear();
+
+        var stored = Assert.Single(DishStore.PutAway(game, retry, now: 100 + DishRetry.WaitSeconds));
+
+        Assert.Equal(Fridge, Assert.IsType<Stored.Into>(stored).Storage.OwnerId);
+    }
+
+    [Fact]
+    public void A_dish_that_stopped_waiting_is_forgotten_so_it_is_tried_at_once_if_it_waits_again()
+    {
+        var game = new FakeDishes();
+        var retry = new DishRetry();
+
+        game.Shelves.Add(Tagged(Fridge, level: 0, specificity: 1));
+        game.Full.Add(Fridge);
+        DishStore.PutAway(game, retry, now: 100);
+
+        game.Waiting.Clear();
+        DishStore.PutAway(game, retry, now: 101);
+        game.Waiting.Add(PorkRice);
+        game.Full.Clear();
+
+        Assert.IsType<Stored.Into>(Assert.Single(DishStore.PutAway(game, retry, now: 102)));
+    }
+
+    [Fact]
+    public void Another_dish_is_tried_while_the_one_that_stayed_waits()
+    {
+        var game = new FakeDishes();
+        var retry = new DishRetry();
+        var stew = new ReadyDish(9002, 2, "Stew", Stove);
+
+        game.Shelves.Add(Tagged(Fridge, level: 0, specificity: 1));
+        game.Full.Add(Fridge);
+        DishStore.PutAway(game, retry, now: 100);
+
+        game.Full.Clear();
+        game.Waiting.Add(stew);
+
+        var stored = Assert.Single(DishStore.PutAway(game, retry, now: 101));
+
+        Assert.Equal(stew, stored.Dish);
+    }
+
     [Fact]
     public void The_line_names_the_dish_and_where_it_went()
     {

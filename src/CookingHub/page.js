@@ -19,6 +19,14 @@
   var cat = { types: {}, items: {}, recipes: {} };
   var overlay = { show: false };
   var overlayVersion = 0;
+  // Counts up with each catalog, so rows naming food redraw in the new names.
+  var catVersion = 0;
+  // The version each recipe book row last arrived with, from one count shared by all rows; a row the plugin sends as
+  // its id alone keeps its version, so the game's recipe row drawn for it is left as it is.
+  var dishVersion = {};
+  var dishCount = 0;
+  var byIdMemo = { version: -1, map: {} };
+  var countsMemo = { key: '', counts: null };
   var toast = null;
   var toastTimer = 0;
   var isBusy = false;
@@ -98,6 +106,7 @@
     ((data && data.types) || []).forEach(function (t) { cat.types[t.id] = t; });
     ((data && data.items) || []).forEach(function (i) { cat.items[i.id] = i; });
     ((data && data.recipes) || []).forEach(function (r) { cat.recipes[r.id] = r; });
+    catVersion++;
     overlayVersion++;
   }
 
@@ -136,9 +145,37 @@
 
   // The odds for the game's cooking screen; drawn at once and kept up by the page check.
   function setCooking(data) {
-    overlay = data || { show: false };
+    var next = data || { show: false };
+
+    if (next.book) next.book = keepRows(next.book);
+
+    overlay = next;
     overlayVersion++;
     patchPagesSafely();
+  }
+
+  // A book row the plugin sends as its recipe id alone is the row this page already has. Should the page not have it
+  // (a page loaded afresh before the plugin heard so), it asks for everything again.
+  function keepRows(book) {
+    var before = bookById();
+    var isMissing = false;
+    var rows = book.map(function (row) {
+      if (typeof row !== 'number') {
+        dishVersion[row.id] = ++dishCount;
+
+        return row;
+      }
+
+      if (before[row]) return before[row];
+
+      isMissing = true;
+
+      return { id: row };
+    });
+
+    if (isMissing) send('ready');
+
+    return rows;
   }
 
   // ---------- game pages ----------
@@ -268,6 +305,7 @@
     }
 
     addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
+    doc.__chStation = true;
 
     var section = doc.getElementById('recipeSection');
     var list = doc.getElementById('recipeList');
@@ -285,7 +323,12 @@
     pressStart(doc, win);
   }
 
+  // Runs once after the station was drawn, not on every page check while there is nothing to draw.
   function clearStation(doc) {
+    if (!doc.__chStation) return;
+
+    doc.__chStation = false;
+    bookDrawn.list = null;
     doc.querySelectorAll('.' + OURS).forEach(function (node) { node.remove(); });
     hideOwnTip(doc);
 
@@ -294,14 +337,19 @@
     if (!list) return;
 
     list.style.display = '';
-    list.querySelectorAll('.book-item').forEach(function (row) { row.style.display = ''; });
+    list.querySelectorAll('.book-item').forEach(function (row) {
+      row.style.display = '';
+
+      // Its decoration went with the rest, so the row is drawn again when the station comes back.
+      if (row.hasAttribute('data-ch')) row.setAttribute('data-ch', '');
+    });
   }
 
   // The tabs stand where the book's title was; hot pot mode hides the whole book, title included, on its own.
   function hideBookTitle(doc) {
     var title = doc.getElementById('recipePanelTitle');
 
-    if (title && !(overlay.stove && overlay.stove.hotPot)) title.style.display = 'none';
+    if (title && !(overlay.stove && overlay.stove.hotPot)) setStyle(title, 'display', 'none');
   }
 
   function stationKey() {
@@ -346,7 +394,7 @@
       var id = STATION_TABS[i][0];
       var label = say(STATION_TABS[i][1]) + '|' + counts[id];
 
-      tab.className = 'ch-tab interactive-btn' + (station.tab === id ? ' ch-on' : '');
+      setClass(tab, 'ch-tab interactive-btn' + (station.tab === id ? ' ch-on' : ''));
 
       if (tab.getAttribute('data-label') === label) return;
 
@@ -358,17 +406,28 @@
 
     var tools = bar.children[1];
 
-    tools.style.display = station.tab === 'book' || station.tab === 'now' ? '' : 'none';
+    var toolsShown = station.tab === 'book' || station.tab === 'now' ? '' : 'none';
+
+    setStyle(tools, 'display', toolsShown);
     kids(tools).slice(1, 1 + STATION_FILTERS.length).forEach(function (chip, i) {
-      chip.className = 'ch-chip interactive-btn' + (station.filter === STATION_FILTERS[i][0] ? ' ch-on' : '');
+      setClass(chip, 'ch-chip interactive-btn' + (station.filter === STATION_FILTERS[i][0] ? ' ch-on' : ''));
     });
 
     var sorts = bar.children[2];
 
-    sorts.style.display = tools.style.display;
+    setStyle(sorts, 'display', toolsShown);
     kids(sorts).slice(1).forEach(function (chip, i) {
-      chip.className = 'ch-chip interactive-btn' + (station.sort === STATION_SORTS[i][0] ? ' ch-on' : '');
+      setClass(chip, 'ch-chip interactive-btn' + (station.sort === STATION_SORTS[i][0] ? ' ch-on' : ''));
     });
+  }
+
+  // Writes only what differs, so a page check that finds nothing new changes nothing on the page.
+  function setClass(node, value) {
+    if (node.className !== value) node.className = value;
+  }
+
+  function setStyle(node, name, value) {
+    if (node.style[name] !== value) node.style[name] = value;
   }
 
   function buildBar(doc) {
@@ -407,28 +466,48 @@
     return bar;
   }
 
+  // Worked out once per overlay and choice, not on every page check.
   function tabCounts() {
-    return {
-      book: 0,
-      now: cookNowDishes().length,
-      queue: (overlay.queue || []).length,
-      pantry: (overlay.pantry || []).filter(function (s) { return s.spoiled > 0 || (s.hours != null && s.hours <= SPOILING_HOURS); }).length
+    var key = stationKey();
+
+    if (countsMemo.key === key) return countsMemo.counts;
+
+    countsMemo = {
+      key: key,
+      counts: {
+        book: 0,
+        now: (overlay.book || []).filter(isFree).length,
+        queue: (overlay.queue || []).length,
+        pantry: (overlay.pantry || []).filter(function (s) { return s.spoiled > 0 || (s.hours != null && s.hours <= SPOILING_HOURS); }).length
+      }
     };
+
+    return countsMemo.counts;
   }
 
   // ---------- the game's recipe book rows ----------
 
   // The game draws one row per entry of State.lastRecipes, in order, with an open group's variants between rows, so
   // rows are matched to recipes by counting rows, never by position among all children.
+  // The book is drawn again only when the overlay, a choice, the catalog, the game's recipes or its rows changed.
+  var bookDrawn = { list: null, recipes: null, key: '', children: [] };
+  var NO_RECIPES = [];
+
   function drawBookRows(doc, win, list) {
-    var recipes = (win && win.State && win.State.lastRecipes) || [];
-    var rows = kids(list).filter(function (child) { return child.classList.contains('book-item'); });
+    var recipes = (win && win.State && win.State.lastRecipes) || NO_RECIPES;
+    var key = stationKey() + ':' + catVersion;
+
+    if (bookDrawn.list === list && bookDrawn.recipes === recipes && bookDrawn.key === key && sameChildren(list, bookDrawn.children)) return;
+
+    bookDrawn = { list: list, recipes: recipes, key: key, children: kids(list) };
+
+    var rows = bookDrawn.children.filter(function (child) { return child.classList.contains('book-item'); });
     var byId = bookById();
 
     var isSorted = station.sort !== 'none';
 
-    list.style.display = station.tab === 'book' ? (isSorted ? 'flex' : '') : 'none';
-    list.style.flexDirection = isSorted ? 'column' : '';
+    setStyle(list, 'display', station.tab === 'book' ? (isSorted ? 'flex' : '') : 'none');
+    setStyle(list, 'flexDirection', isSorted ? 'column' : '');
     list.classList.toggle('ch-sorted', isSorted);
 
     if (rows.length !== recipes.length) return;
@@ -454,14 +533,26 @@
       var hasVariants = variants && variants.classList.contains('recipe-variants');
 
       decorateRow(doc, row, recipe, dish);
-      row.style.display = isShown ? '' : 'none';
-      row.style.order = isSorted ? String(2 * place[i]) : '';
+      setStyle(row, 'display', isShown ? '' : 'none');
+      setStyle(row, 'order', isSorted ? String(2 * place[i]) : '');
 
       if (hasVariants) {
-        variants.style.display = isShown ? '' : 'none';
-        variants.style.order = isSorted ? String(2 * place[i] + 1) : '';
+        setStyle(variants, 'display', isShown ? '' : 'none');
+        setStyle(variants, 'order', isSorted ? String(2 * place[i] + 1) : '');
       }
     });
+  }
+
+  function sameChildren(node, before) {
+    var children = node.children;
+
+    if (children.length !== before.length) return false;
+
+    for (var i = 0; i < children.length; i++) {
+      if (children[i] !== before[i]) return false;
+    }
+
+    return true;
   }
 
   // Higher is better; a dish with nothing known sorts last.
@@ -473,9 +564,12 @@
   }
 
   function bookById() {
+    if (byIdMemo.version === overlayVersion) return byIdMemo.map;
+
     var byId = {};
 
     (overlay.book || []).forEach(function (dish) { byId[dish.id] = dish; });
+    byIdMemo = { version: overlayVersion, map: byId };
 
     return byId;
   }
@@ -506,8 +600,9 @@
   // Where the food is or what is missing, a bar of the odds, the Perfect chance, Load when the game's own fill would
   // refuse (its rows only count the bag) but the player's storages cover the dish, and Queue beside it. Food set aside
   // for queued dishes does not count, and a dish only it covers says so instead.
+  // Keyed by what the row is drawn from, so a row whose dish did not change keeps its drawing through a new overlay.
   function decorateRow(doc, row, recipe, dish) {
-    var key = String(overlayVersion);
+    var key = [recipe.recipeId, dish ? dishVersion[dish.id] : '-', recipe.status, recipe.craftLocked ? 1 : 0, recipe.variantCount, overlay.queueFull ? 1 : 0, catVersion].join(':');
 
     if (row.getAttribute('data-ch') === key) return;
 
@@ -895,7 +990,9 @@
     var actions = doc.querySelector('.action-buttons');
     var stove = overlay.stove;
 
-    keepDrawn(doc, 'ch-stoveline', String(overlayVersion), actions && actions.parentNode, actions, stove && function () {
+    var key = stove ? [stove.name, stove.speed, stove.bonus, stove.cookSecs, catVersion].join('|') : '';
+
+    keepDrawn(doc, 'ch-stoveline', key, actions && actions.parentNode, actions, stove && function () {
       var line = make(doc, 'div', 'ch-stoveline ' + OURS);
       var left = make(doc, 'span', '', stove.name + ': ');
 
@@ -922,7 +1019,7 @@
     var actions = doc.querySelector('.action-buttons');
     var isShown = overlay.last != null && !overlay.cooking && overlay.potEmpty;
 
-    keepDrawn(doc, 'ch-repeat', overlayVersion + ':' + overlay.last, actions, null, isShown && function () {
+    keepDrawn(doc, 'ch-repeat', isShown + ':' + catVersion + ':' + overlay.last, actions, null, isShown && function () {
       return pageButton(doc, 'button', 'ch-btn2', say('repeat', recipeOf(overlay.last).name), function () { sendAction('repeat'); });
     });
   }
@@ -933,7 +1030,7 @@
     var fuel = overlay.stove && overlay.stove.fuel;
     var isShown = !!fuel && fuel.known && fuel.have > 0;
 
-    keepDrawn(doc, 'ch-topup', overlayVersion + ':' + (fuel ? fuel.have : 0), header, null, isShown && function () {
+    keepDrawn(doc, 'ch-topup', isShown + ':' + catVersion + ':' + (fuel ? fuel.have : 0), header, null, isShown && function () {
       return pageButton(doc, 'span', 'ch-fuelbtn', say('topUp', fuel.have), function () { sendAction('topup'); });
     });
   }
@@ -969,15 +1066,18 @@
     }
 
     addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
+    doc.__chOdds = true;
+
+    var drawn = oddsDrawnFrom();
 
     for (var i = 0; i < cards.length; i++) {
       var odds = overlay.odds ? (overlay.lines || [])[i] : null;
       // Under the dish's name and hint, in the card's text column.
       var holder = firstChildWithClass(cards[i], 'pot-bd') || cards[i];
 
-      if (holder.getAttribute('data-ch-version') === String(overlayVersion)) continue;
+      if (holder.getAttribute('data-ch-version') === drawn.odds) continue;
 
-      holder.setAttribute('data-ch-version', String(overlayVersion));
+      holder.setAttribute('data-ch-version', drawn.odds);
       ['ch-odds', 'ch-why', 'ch-potgives'].forEach(function (name) {
         var drawn = firstChildWithClass(holder, name);
 
@@ -998,11 +1098,36 @@
       }
     }
 
-    if (overlay.odds) drawNudges(doc, list);
+    if (overlay.odds) drawNudges(doc, list, drawn.nudges);
     else clearNudges(doc);
 
     if (!hasReportedOddsDrawn) send('diag|odds drawn on the cooking screen');
     hasReportedOddsDrawn = true;
+  }
+
+  // Keys for what the odds and the nudges are drawn from, counting up only when that changed, so an overlay that
+  // changed elsewhere (the pantry, the book) leaves the forecast cards as they are. Worked out once per overlay.
+  var oddsMemo = { version: -1, odds: { text: '', count: 0 }, nudges: { text: '', count: 0 }, keys: null };
+
+  function oddsDrawnFrom() {
+    if (oddsMemo.version === overlayVersion) return oddsMemo.keys;
+
+    oddsMemo.version = overlayVersion;
+    oddsMemo.keys = {
+      odds: countUp(oddsMemo.odds, JSON.stringify([overlay.odds, overlay.level, overlay.ids, overlay.lines, overlay.lineGives, catVersion])),
+      nudges: countUp(oddsMemo.nudges, JSON.stringify([overlay.cooking, overlay.nudges, catVersion]))
+    };
+
+    return oddsMemo.keys;
+  }
+
+  function countUp(seen, text) {
+    if (seen.text !== text) {
+      seen.text = text;
+      seen.count++;
+    }
+
+    return String(seen.count);
   }
 
   function sameDishes(win, cardCount) {
@@ -1018,7 +1143,11 @@
     return true;
   }
 
+  // Runs once after odds were drawn, not on every page check while the forecast does not match.
   function clearOdds(doc) {
+    if (!doc.__chOdds) return;
+
+    doc.__chOdds = false;
     doc.querySelectorAll('.ch-odds').forEach(function (node) { node.remove(); });
     doc.querySelectorAll('.ch-why').forEach(function (node) { node.remove(); });
     doc.querySelectorAll('.ch-potgives').forEach(function (node) { node.remove(); });
@@ -1084,7 +1213,7 @@
   }
 
   // The changes that would raise the odds, as buttons under the forecast; only while the pot can still change.
-  function drawNudges(doc, list) {
+  function drawNudges(doc, list, key) {
     var existing = doc.getElementById(NUDGES_ID);
     var nudges = overlay.cooking ? [] : overlay.nudges || [];
 
@@ -1094,13 +1223,13 @@
       return;
     }
 
-    if (existing && existing.getAttribute('data-version') === String(overlayVersion) && existing.previousSibling === list) return;
+    if (existing && existing.getAttribute('data-version') === key && existing.previousSibling === list) return;
     if (existing) existing.remove();
 
     var box = make(doc, 'div');
 
     box.id = NUDGES_ID;
-    box.setAttribute('data-version', String(overlayVersion));
+    box.setAttribute('data-version', key);
     nudges.forEach(function (n) { box.appendChild(nudgeButton(doc, n)); });
     list.parentNode.insertBefore(box, list.nextSibling);
   }

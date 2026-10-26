@@ -23,6 +23,9 @@ internal sealed class PageScript
     /// <summary>Every command the script sent the plugin, its ready message and diag notes aside.</summary>
     public List<PageCommand> Sent { get; } = new();
 
+    /// <summary>How many times the script asked the plugin for everything again.</summary>
+    public int Readies { get; private set; }
+
     /// <summary>The script's "diag|" notes, as the plugin logs them.</summary>
     public List<string> Notes { get; } = new();
 
@@ -74,6 +77,7 @@ internal sealed class PageScript
         switch (command)
         {
             case PageCommand.Ready:
+                Readies++;
                 break;
             case PageCommand.Note note:
                 Notes.Add(note.Text);

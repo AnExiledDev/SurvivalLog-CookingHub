@@ -52,7 +52,7 @@ internal sealed partial class GameCooking : IDishGame
 
         if (items == null || !items.TryQuickMoveItem(dish.InstanceId, dish.StoveId, toOwnerId, true, false)) return false;
 
-        Ac_Cooking_RefreshBag.SendAction();
+        BagRefresh.Ask();
 
         return true;
     });
@@ -95,7 +95,7 @@ internal sealed partial class GameCooking : IDishGame
 
         var (_, config, agents, role) = game.Value;
         var itemConfig = config.Get_Config_Item(dish.ItemId);
-        var places = new Places(config, agents, role.InstanceId, GameLanguage.IsChinese());
+        var places = PlacesFor(config, agents, role.InstanceId, GameLanguage.IsChinese());
         var daysLeft = DaysLeft(itemConfig?.Life ?? 0, item);
 
         foreach (var storage in HomeBagFurnitures(agents))

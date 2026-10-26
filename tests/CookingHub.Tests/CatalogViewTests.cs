@@ -22,4 +22,21 @@ public class CatalogViewTests
 
         Assert.Equal(expected, json.RootElement.GetProperty("recipes")[0].GetProperty("dish").GetInt32());
     }
+
+    // The page names food only (the pantry, what a dish is missing, a seasoning to add), so the thousands of dishes and
+    // other items the game knows stay out of the catalog; a recipe that asks for one by name keeps it.
+    [Fact]
+    public void The_catalog_carries_food_and_items_a_recipe_names_and_leaves_out_the_dishes()
+    {
+        var book = Book with
+        {
+            Recipes = new Dictionary<int, Recipe>(Book.Recipes) { [Secret] = R(Secret, "Secret", specific: new[] { Rice, Firewood }) },
+        };
+
+        using var json = JsonDocument.Parse(CatalogView.Write(book));
+
+        var ids = json.RootElement.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetInt32()).ToList();
+
+        Assert.Equal(new[] { Rice, Wheat, Pork, Salt, Pepper, Firewood }, ids);
+    }
 }

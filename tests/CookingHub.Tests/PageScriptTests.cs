@@ -463,4 +463,52 @@ public class PageScriptTests
 
         Assert.Equal("waiting,short of food", page.Text("cookingPage().querySelector('.ch-view').querySelectorAll('.ch-sp').map(function (c) { return c.textContent; }).join(',')"));
     }
+
+    // The plugin sends a book row the page already has as its recipe id alone: the row that changed is drawn again and
+    // the others keep what was drawn on them, buttons and all.
+    [Fact]
+    public void A_changed_book_row_is_drawn_again_and_one_sent_as_its_id_keeps_its_drawing()
+    {
+        var kitchen = Stocked().Kitchen();
+        var overlay = CookView.Overlay(kitchen, kitchen.Stove!, isShowingOdds: true);
+        var delta = new OverlayDelta();
+        var page = new PageScript();
+
+        page.Catalog(CatalogView.Write(Book));
+        page.OpenCooking();
+        page.Run($"stationParts(cookingFrame, {StationBook}, false)");
+
+        var first = delta.Next(overlay)!;
+
+        page.Cooking(first.Json);
+        delta.Sent(first);
+        page.Poll();
+        page.Run(BookRow("Pork Rice") + ".querySelector('.ch-where').drawnBefore = true");
+
+        var readies = page.Readies;
+
+        page.Cooking(delta.Next(OverlayDeltaTests.StirFryElsewhere(overlay))!.Json);
+        page.Poll();
+
+        Assert.Equal("Cellar", page.Text(BookRow("Stir Fry") + ".querySelector('.ch-where').textContent"));
+        Assert.True(page.Is(BookRow("Pork Rice") + ".querySelector('.ch-where').drawnBefore"), "a row the page already had is not drawn again");
+        Assert.Contains("Chest", page.Text(BookRow("Pork Rice") + ".textContent"));
+        Assert.Equal("Load,Queue", page.Text(BookRow("Pork Rice") + ".querySelectorAll('.ch-st').filter(function (b) { return b.classList.contains('interactive-btn'); }).map(function (b) { return b.textContent; }).join(',')"));
+        Assert.Equal(readies, page.Readies);
+    }
+
+    // A page loaded afresh before the plugin heard of it has no rows to keep, so it asks for the whole overlay again.
+    [Fact]
+    public void A_book_row_sent_as_an_id_the_page_never_had_makes_it_ask_for_everything_again()
+    {
+        var kitchen = Stocked().Kitchen();
+        var page = Station(Stocked());
+        var readies = page.Readies;
+        var overlay = System.Text.Json.Nodes.JsonNode.Parse(CookView.Overlay(kitchen, kitchen.Stove!, isShowingOdds: true))!.AsObject();
+
+        overlay["book"]!.AsArray().Add(99);
+        page.Cooking(overlay.ToJsonString());
+
+        Assert.Equal(readies + 1, page.Readies);
+    }
 }

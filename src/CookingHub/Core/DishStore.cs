@@ -50,9 +50,30 @@ public static class DishStore
             .ThenByDescending(shelf => shelf.HoldsSameItem)
             .ToList();
 
-    /// <summary>Puts every waiting dish into the first storage that takes it. A dish no storage takes stays in its stove.</summary>
-    public static IReadOnlyList<Stored> PutAway(IDishGame game) =>
-        game.WaitingDishes().Select(dish => PutAway(game, dish)).ToList();
+    /// <summary>
+    /// Puts every waiting dish into the first storage that takes it. A dish no storage takes stays in its stove, and with
+    /// a retry list it is not tried again until its wait is over: ranking every storage and trying each full one is a
+    /// game move apiece, too dear to repeat every sweep for a dish that has nowhere to go.
+    /// </summary>
+    public static IReadOnlyList<Stored> PutAway(IDishGame game, DishRetry? retry = null, double now = 0)
+    {
+        var waiting = game.WaitingDishes();
+        var results = new List<Stored>();
+
+        retry?.KeepOnly(waiting);
+
+        foreach (var dish in waiting)
+        {
+            if (retry != null && !retry.IsDue(dish, now)) continue;
+
+            var stored = PutAway(game, dish);
+
+            retry?.Saw(stored, now);
+            results.Add(stored);
+        }
+
+        return results;
+    }
 
     private static Stored PutAway(IDishGame game, ReadyDish dish)
     {
@@ -74,6 +95,35 @@ public static class DishStore
         Stored.Stays stays => Texts.DishStays.Say(isChinese, stays.Dish.Name),
         _ => throw new InvalidOperationException("unknown put away result"),
     };
+}
+
+/// <summary>
+/// Dishes that stayed in their stove, each with when it may be tried again. A dish leaves the list once it is put away
+/// or no longer waits (taken out by hand, or eaten).
+/// </summary>
+public sealed class DishRetry
+{
+    public const double WaitSeconds = 30;
+
+    private readonly Dictionary<long, double> _nextTryAt = new();
+
+    public bool IsDue(ReadyDish dish, double now) => !_nextTryAt.TryGetValue(dish.InstanceId, out var at) || now >= at;
+
+    public void Saw(Stored stored, double now)
+    {
+        if (stored is Stored.Stays) _nextTryAt[stored.Dish.InstanceId] = now + WaitSeconds;
+        else _nextTryAt.Remove(stored.Dish.InstanceId);
+    }
+
+    public void KeepOnly(IReadOnlyList<ReadyDish> waiting)
+    {
+        if (_nextTryAt.Count == 0) return;
+
+        var ids = new HashSet<long>();
+
+        foreach (var dish in waiting) ids.Add(dish.InstanceId);
+        foreach (var id in _nextTryAt.Keys.Where(id => !ids.Contains(id)).ToList()) _nextTryAt.Remove(id);
+    }
 }
 
 /// <summary>What to tell the player about one dish: the line, and whether it is a warning.</summary>

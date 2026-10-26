@@ -70,7 +70,7 @@ internal sealed partial class GameCooking
         if (game == null || !IsHome(game.Value.Agents) || game.Value.World._ItemManager is not { } items) return idle;
 
         var (world, config, agents, role) = game.Value;
-        var places = new Places(config, agents, role.InstanceId, GameLanguage.IsChinese());
+        var places = PlacesFor(config, agents, role.InstanceId, GameLanguage.IsChinese());
         var openId = OpenStoveId();
 
         foreach (var furniture in HomeBagFurnitures(agents))
@@ -79,7 +79,7 @@ internal sealed partial class GameCooking
             if (config.Get_Config_FurnitureCook(cooking.CookFurnitureId) is not { } cook || cook.CookMode == HotPotMode) continue;
             if (HoldsAnything(items, furniture.InstanceId)) continue;
 
-            var allowed = cook.AllowedRecipes is { Count: > 0 } list ? Enumerable.Range(0, list.Count).Select(i => list[i]).ToHashSet() : null;
+            var allowed = AllowedOn(config, cooking.CookFurnitureId, cook);
             var stove = new Stove(
                 furniture.InstanceId,
                 furniture.InstanceId,

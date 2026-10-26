@@ -28,9 +28,33 @@ internal sealed partial class GameCooking : ICookGame
     /// <summary>Where each unit this mod put in a pot came from, by its instance id; main thread only.</summary>
     private readonly Dictionary<long, long> _origins = new();
 
+    /// <summary>How long what the player has learned, and the names of where food is kept, are trusted between reads.</summary>
+    private const long KeepMilliseconds = 5000;
+
     private IconIndex? _icons;
     private (IntPtr Config, bool IsChinese) _catalogKey;
     private Cookbook? _catalog;
+    private int _multiPotLevel = Kitchen.ShippedMultiPotLevel;
+
+    /// <summary>The item table rows a read looks at for every stack, by item id; dropped with the tables.</summary>
+    private readonly Dictionary<int, ItemRow> _itemRows = new();
+    private IntPtr _itemRowsConfig;
+
+    /// <summary>Each stove kind's allowed recipes (null for all), by its cook row id; dropped with the tables.</summary>
+    private readonly Dictionary<int, HashSet<int>?> _allowed = new();
+    private IntPtr _allowedConfig;
+
+    private (IntPtr Record, int Level) _learnedKey;
+    private long _learnedUntil;
+    private IReadOnlyCollection<int> _cooked = Array.Empty<int>();
+    private IReadOnlyCollection<int> _craftUnlocked = Array.Empty<int>();
+
+    private (IntPtr Config, IntPtr Agents, long RoleId, bool IsChinese) _placesKey;
+    private long _placesUntil;
+    private Places? _places;
+
+    private string? _forecastJson;
+    private IReadOnlyList<Forecast> _forecasts = Array.Empty<Forecast>();
 
     public GameCooking(Action<string> log)
     {
@@ -72,7 +96,7 @@ internal sealed partial class GameCooking : ICookGame
 
         if (items == null || !QuickMove(items, instanceId, fromOwnerId, toOwnerId)) return false;
 
-        Ac_Cooking_RefreshBag.SendAction();
+        BagRefresh.Ask();
 
         return true;
     });
@@ -113,7 +137,7 @@ internal sealed partial class GameCooking : ICookGame
             current = IdsOf(items, fromOwnerId, configId).FirstOrDefault(id => !before.Contains(id));
         }
 
-        if (moved > 0) Ac_Cooking_RefreshBag.SendAction();
+        if (moved > 0) BagRefresh.Ask();
 
         return moved;
     });
@@ -177,7 +201,7 @@ internal sealed partial class GameCooking : ICookGame
 
         var isAdded = FuelHeld(cooking) != before;
 
-        if (isAdded) Ac_Cooking_RefreshBag.SendAction();
+        if (isAdded) BagRefresh.Ask();
         else _log($"the game did not burn stack {instanceId} in stove {furnitureId}");
 
         return isAdded;
@@ -201,15 +225,58 @@ internal sealed partial class GameCooking : ICookGame
 
         var hour = world._GameTimeManager?.GetHour() ?? 0;
         var items = world._ItemManager;
-        var places = new Places(config, agents, role.InstanceId, isChinese);
-        var stock = ReadStock(items, book, config, role.InstanceId, hour, places);
-        var cooked = book.Recipes.Keys.Where(record.IsRecipeUnlocked).ToHashSet();
-        var craftUnlocked = book.Recipes.Keys.Where(record.IsCraftRecipeUnlocked).ToHashSet();
-        var stove = ReadStove(items, config, agents, role.InstanceId, hour, places);
+        var places = PlacesFor(config, agents, role.InstanceId, isChinese);
+        var available = items?.GetAllAvailableItems(role.InstanceId);
+        var stock = ReadStock(available, book, config, role.InstanceId, hour, places);
+        var level = Math.Max(1, record.CookingLevel);
 
-        var multiPot = config.TryGet_Config_GlobalSetting("CookingMultiPot_UnlockLevel");
+        Learned(book, record, level);
 
-        return new CookRead.Ready(new Kitchen(book, Math.Max(1, record.CookingLevel), cooked, craftUnlocked, stock, stove, multiPot == null ? Kitchen.ShippedMultiPotLevel : (int)multiPot.Params2));
+        var stove = ReadStove(items, available, config, agents, role.InstanceId, hour, places);
+
+        return new CookRead.Ready(new Kitchen(book, level, _cooked, _craftUnlocked, stock, stove, _multiPotLevel));
+    }
+
+    /// <summary>
+    /// The recipes the player has cooked and may cook: two game calls per recipe, so they are asked again only after a
+    /// few seconds, at a new cooking level, or for another save. A recipe learned meanwhile shows a moment later.
+    /// </summary>
+    private void Learned(Cookbook book, CookingRecordComponent record, int level)
+    {
+        var key = (record.Pointer, level);
+        var now = Environment.TickCount64;
+
+        if (key == _learnedKey && now < _learnedUntil) return;
+
+        var cooked = new HashSet<int>();
+        var craftUnlocked = new HashSet<int>();
+
+        foreach (var id in book.Recipes.Keys)
+        {
+            if (record.IsRecipeUnlocked(id)) cooked.Add(id);
+            if (record.IsCraftRecipeUnlocked(id)) craftUnlocked.Add(id);
+        }
+
+        if (!cooked.SetEquals(_cooked)) _cooked = cooked;
+        if (!craftUnlocked.SetEquals(_craftUnlocked)) _craftUnlocked = craftUnlocked;
+
+        _learnedKey = key;
+        _learnedUntil = now + KeepMilliseconds;
+    }
+
+    /// <summary>Where food is kept, by name, kept for a few seconds: each storage is otherwise looked up again every read.</summary>
+    private Places PlacesFor(ConfigManager config, AgentManager agents, long roleId, bool isChinese)
+    {
+        var key = (config.Pointer, agents.Pointer, roleId, isChinese);
+        var now = Environment.TickCount64;
+
+        if (_places != null && key == _placesKey && now < _placesUntil) return _places;
+
+        _places = new Places(config, agents, roleId, isChinese);
+        _placesKey = key;
+        _placesUntil = now + KeepMilliseconds;
+
+        return _places;
     }
 
     private static (BattleLogicWorld World, ConfigManager Config, AgentManager Agents, LeadingRole Role)? LoadedGame()
@@ -229,10 +296,9 @@ internal sealed partial class GameCooking : ICookGame
     /// the game keeps out of that pool. That pool lists what every stove's pot holds too, so pots are skipped: taking food
     /// out of a cooking pot makes the game stop that stove (Cooking_RunningState.Update, CancelCookingByIngredientLost).
     /// </summary>
-    private static List<Core.Stack> ReadStock(ItemManager? items, Cookbook book, ConfigManager config, long roleId, int hour, Places places)
+    private List<Core.Stack> ReadStock(Il2CppSystem.Collections.Generic.List<ItemData>? available, Cookbook book, ConfigManager config, long roleId, int hour, Places places)
     {
         var stock = new List<Core.Stack>();
-        var available = items?.GetAllAvailableItems(roleId);
 
         for (var i = 0; available != null && i < available.Count; i++)
         {
@@ -248,7 +314,7 @@ internal sealed partial class GameCooking : ICookGame
     }
 
     /// <summary>The open cooking panel, or null. The pot is the panel's workbench; the panel's bag is where a swap puts spoiled food.</summary>
-    private static Stove? ReadStove(ItemManager? items, ConfigManager config, AgentManager agents, long roleId, int hour, Places places)
+    private Stove? ReadStove(ItemManager? items, Il2CppSystem.Collections.Generic.List<ItemData>? available, ConfigManager config, AgentManager agents, long roleId, int hour, Places places)
     {
         var ui = GameSingleton.Existing<ReduxUISystem>();
         var screen = Il2CppType.Of<WebUI_Cooking>();
@@ -269,8 +335,6 @@ internal sealed partial class GameCooking : ICookGame
             if (held[i] is { ItemCount: > 0 } item) pot.Add(StackOf(item, config, hour, places.Pot));
         }
 
-        var allowed = cook.AllowedRecipes is { Count: > 0 } list ? Enumerable.Range(0, list.Count).Select(i => list[i]).ToHashSet() : null;
-
         return new Stove(
             state.CurrentFurnitureId,
             workbenchId,
@@ -279,21 +343,55 @@ internal sealed partial class GameCooking : ICookGame
             state.HotPotMode?.Value == true,
             state.IsCooking?.Value == true,
             cook.QualityBonus,
-            allowed,
+            AllowedOn(config, state.CookFurnitureId, cook),
             pot,
-            Forecasts.Parse(state.PredictionListJson?.Value),
+            ForecastsOf(state.PredictionListJson?.Value),
             places.Name(state.CurrentFurnitureId),
             cook.SpeedRate,
             cook.HotPotCookTime,
-            ReadFuel(items, config, agents, cook, state.CurrentFurnitureId, roleId, hour, places),
+            ReadFuel(available, config, agents, cook, state.CurrentFurnitureId, roleId, hour, places),
             StackingUnits.IsPresent);
+    }
+
+    /// <summary>The recipes a kind of stove takes, null for all: table data, read once per kind.</summary>
+    private HashSet<int>? AllowedOn(ConfigManager config, int cookId, Config_FurnitureCook cook)
+    {
+        if (_allowedConfig != config.Pointer)
+        {
+            _allowed.Clear();
+            _allowedConfig = config.Pointer;
+        }
+
+        if (_allowed.TryGetValue(cookId, out var known)) return known;
+
+        HashSet<int>? allowed = null;
+
+        if (cook.AllowedRecipes is { Count: > 0 } list)
+        {
+            allowed = new HashSet<int>();
+
+            for (var i = 0; i < list.Count; i++) allowed.Add(list[i]);
+        }
+
+        return _allowed[cookId] = allowed;
+    }
+
+    /// <summary>The panel's forecast only changes with the pot, so the same text is not parsed again.</summary>
+    private IReadOnlyList<Forecast> ForecastsOf(string? json)
+    {
+        if (json == _forecastJson) return _forecasts;
+
+        _forecasts = Forecasts.Parse(json);
+        _forecastJson = json;
+
+        return _forecasts;
     }
 
     /// <summary>
     /// A stove that burns fuel (CookType 1): its slots, the kinds it burns (what its slots hold now, else what it was
     /// built with), and the player's burnable stacks of those kinds. Null for a cooker with no fire.
     /// </summary>
-    private static Fuel? ReadFuel(ItemManager items, ConfigManager config, AgentManager agents, Config_FurnitureCook cook, long furnitureId, long roleId, int hour, Places places)
+    private Fuel? ReadFuel(Il2CppSystem.Collections.Generic.List<ItemData>? available, ConfigManager config, AgentManager agents, Config_FurnitureCook cook, long furnitureId, long roleId, int hour, Places places)
     {
         var furniture = FurnitureOf(agents, furnitureId);
         var cooking = furniture == null ? null : AgentTools.GetAgentComponent<CookingComponent>(furniture);
@@ -311,14 +409,13 @@ internal sealed partial class GameCooking : ICookGame
         var preferred = held.Count > 0 ? held : Ints(cook.InitialFuel).ToHashSet();
         var maxSlots = cooking.MaxFuelSlots > 0 ? cooking.MaxFuelSlots : cook.FuelSlotCount;
 
-        return new Fuel(maxSlots, slots?.Count ?? 0, preferred, ReadFuelStock(items, config, preferred, roleId, hour, places));
+        return new Fuel(maxSlots, slots?.Count ?? 0, preferred, ReadFuelStock(available, config, preferred, roleId, hour, places));
     }
 
     /// <summary>The player's stacks of the given fuel kinds, from the same bag and storages food is read from.</summary>
-    private static List<Core.Stack> ReadFuelStock(ItemManager items, ConfigManager config, HashSet<int> kinds, long roleId, int hour, Places places)
+    private List<Core.Stack> ReadFuelStock(Il2CppSystem.Collections.Generic.List<ItemData>? available, ConfigManager config, HashSet<int> kinds, long roleId, int hour, Places places)
     {
         var stock = new List<Core.Stack>();
-        var available = items.GetAllAvailableItems(roleId);
 
         for (var i = 0; available != null && kinds.Count > 0 && i < available.Count; i++)
         {
@@ -326,7 +423,7 @@ internal sealed partial class GameCooking : ICookGame
 
             if (item == null || item.ItemCount <= 0 || !kinds.Contains(item.ItemConfigId)) continue;
             if (item.OwnerId != roleId && places.IsSetApart(item.OwnerId)) continue;
-            if (config.Get_Config_Item(item.ItemConfigId) is not { Burnable: true }) continue;
+            if (!RowOf(config, item.ItemConfigId).Burnable) continue;
 
             stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)) with { Count = item.ItemCount });
         }
@@ -358,17 +455,8 @@ internal sealed partial class GameCooking : ICookGame
         return furniture != null && basketId > 0 && furniture.AgentConfigId == basketId;
     }
 
-    private static Furniture? FurnitureOf(AgentManager? agents, long furnitureId)
-    {
-        var furnitures = agents?.GetAllFurnitures();
-
-        for (var i = 0; furnitures != null && i < furnitures.Count; i++)
-        {
-            if (furnitures[i]?.InstanceId == furnitureId) return furnitures[i];
-        }
-
-        return null;
-    }
+    /// <summary>By the agent table, as storage names are found, rather than walking every furniture in the world.</summary>
+    private static Furniture? FurnitureOf(AgentManager? agents, long furnitureId) => agents?.GetAgent(furnitureId)?.TryCast<Furniture>();
 
     /// <summary>How much fuel a stove holds, so an added unit can be seen: slots, and units across them.</summary>
     private static (int Slots, int Units) FuelHeld(CookingComponent cooking)
@@ -385,15 +473,34 @@ internal sealed partial class GameCooking : ICookGame
     /// One stack as the cooking code sees it. Spoiled is the test Furniture.RollCookingQuality uses: a shelf life, and
     /// its end hour reached. An item used a little at a time counts as one, as recipe matching counts it.
     /// </summary>
-    private static Core.Stack StackOf(ItemData item, ConfigManager config, int hour, string place)
+    private Core.Stack StackOf(ItemData item, ConfigManager config, int hour, string place)
     {
-        var row = config.Get_Config_Item(item.ItemConfigId);
-        var hasLife = row != null && row.Life > 0;
+        var row = RowOf(config, item.ItemConfigId);
+        var hasLife = row.Life > 0;
         var hoursLeft = hasLife ? item.StartTime + item.TimeLeft - hour : (double?)null;
-        var count = row != null && row.StackLimit <= 1 ? 1 : item.ItemCount;
+        var count = row.IsUsedUp ? 1 : item.ItemCount;
 
         return new Core.Stack(item.InstanceId, item.ItemConfigId, count, item.OwnerId, place, hoursLeft, hasLife && hoursLeft <= 0);
     }
+
+    /// <summary>What a read needs of an item's table row, looked up once per item and kept until the tables change.</summary>
+    private ItemRow RowOf(ConfigManager config, int itemId)
+    {
+        if (_itemRowsConfig != config.Pointer)
+        {
+            _itemRows.Clear();
+            _itemRowsConfig = config.Pointer;
+        }
+
+        if (_itemRows.TryGetValue(itemId, out var known)) return known;
+
+        var row = config.Get_Config_Item(itemId);
+
+        return _itemRows[itemId] = row == null ? default : new ItemRow(row.Life, row.StackLimit <= 1, row.Burnable);
+    }
+
+    /// <summary>A missing row reads as no shelf life, counted by the stack, and not fuel, as the null checks before it did.</summary>
+    private readonly record struct ItemRow(int Life, bool IsUsedUp, bool Burnable);
 
     /// <summary>What an owner holds, so a move can be seen: stacks, units, and uses of items used a little at a time.</summary>
     private static (int Stacks, int Units, int Uses) Holding(ItemManager items, long ownerId)
@@ -423,8 +530,11 @@ internal sealed partial class GameCooking : ICookGame
         var recipes = ReadRecipes(config);
         var outputs = recipes.Values.SelectMany(recipe => recipe.Outputs).ToHashSet();
 
+        var multiPot = config.TryGet_Config_GlobalSetting("CookingMultiPot_UnlockLevel");
+
         _catalog = new Cookbook(ReadItems(config, outputs), recipes, ReadTypes(config), ReadRules(config));
         _catalogKey = key;
+        _multiPotLevel = multiPot == null ? Kitchen.ShippedMultiPotLevel : (int)multiPot.Params2;
         _log($"read {_catalog.Items.Count} foods and dishes, {_catalog.Recipes.Count} recipes, {_catalog.Types.Count} food types");
 
         return _catalog;
