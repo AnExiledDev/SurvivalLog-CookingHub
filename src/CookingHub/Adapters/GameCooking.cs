@@ -212,7 +212,8 @@ internal sealed partial class GameCooking : ICookGame
 
     /// <summary>
     /// Food the player can reach: their bag and every home storage the game counts for building costs, skipping storage
-    /// the game keeps out of that pool. Stoves and pots are not storage, so food already in a pot is not counted here.
+    /// the game keeps out of that pool. That pool lists what every stove's pot holds too, so pots are skipped: taking food
+    /// out of a cooking pot makes the game stop that stove (Cooking_RunningState.Update, CancelCookingByIngredientLost).
     /// </summary>
     private static List<Core.Stack> ReadStock(ItemManager? items, Cookbook book, ConfigManager config, long roleId, int hour, Places places)
     {
@@ -320,11 +321,20 @@ internal sealed partial class GameCooking : ICookGame
     }
 
     /// <summary>
-    /// Storage the game keeps out of its cost pool, and the neighbor's basket, which it does not: what the player
-    /// staged there is going to her, so it is neither food to cook with nor a place for dishes.
+    /// Storage the game keeps out of its cost pool; the neighbor's basket, which it does not: what the player staged
+    /// there is going to her, so it is neither food to cook with nor a place for dishes; and every stove, whose pot food
+    /// belongs to the dish it is cooking or about to cook.
     /// </summary>
-    private static bool IsSetApart(long ownerId) =>
-        ItemManager.IsExcludedFromCostPool(ownerId) || IsNeighborBasket(GameSingleton.Existing<BattleLogicWorld>()?._AgentManager?.GetAgent(ownerId)?.TryCast<Furniture>());
+    private static bool IsSetApart(long ownerId)
+    {
+        if (ItemManager.IsExcludedFromCostPool(ownerId)) return true;
+
+        var furniture = GameSingleton.Existing<BattleLogicWorld>()?._AgentManager?.GetAgent(ownerId)?.TryCast<Furniture>();
+
+        return IsNeighborBasket(furniture) || IsStove(furniture);
+    }
+
+    private static bool IsStove(Furniture? furniture) => furniture != null && AgentTools.GetAgentComponent<CookingComponent>(furniture) != null;
 
     /// <summary>The basket's config id is 0 when there is none.</summary>
     private static bool IsNeighborBasket(Furniture? furniture)
