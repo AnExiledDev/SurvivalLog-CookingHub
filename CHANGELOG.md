@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3
+
+- Less stutter: while the cooking screen is closed, the mod no longer reads every food in your storages every few seconds. With a stove open, each storage is looked up once per read instead of once per stack.
+
 ## 0.6.2
 
 - Fixed: with two stoves cooking the same dish, loading the second one could take the ingredients out of the first and stop it. This also happened with ingredients that have several uses, like frozen pizza. Load, Add and the queue now only take food from your bag and storages, and the Pantry tab no longer lists food sitting in a stove.

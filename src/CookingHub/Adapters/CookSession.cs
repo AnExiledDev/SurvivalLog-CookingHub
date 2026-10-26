@@ -272,6 +272,13 @@ internal sealed class CookSession
     /// </summary>
     private void Refresh(float now)
     {
+        if (!_isCookingScreenOpen())
+        {
+            RefreshClosed(now);
+
+            return;
+        }
+
         var read = _game.Read();
 
         if (read is CookRead.NoGame) ForgetQueue();
@@ -286,6 +293,20 @@ internal sealed class CookSession
 
         _nextRefreshAt = now + (isStoveOpen || _wasCookingScreenOpen ? StoveRefreshSeconds : ClosedRefreshSeconds);
         SendOverlay(kitchen);
+    }
+
+    /// <summary>
+    /// With the cooking screen closed there is no stove to draw odds for, so the kitchen is not read: reading every food
+    /// in every storage only to clear an overlay was most of what this mod cost while the player did something else.
+    /// </summary>
+    private void RefreshClosed(float now)
+    {
+        if (!_game.IsLoaded()) ForgetQueue();
+
+        _last = _last.See(null);
+        _startUntil = 0f;
+        _nextRefreshAt = now + ClosedRefreshSeconds;
+        SendOverlay(null);
     }
 
     /// <summary>The odds on the game's cooking screen, sent only when they changed. The catalog goes first, since nudges name items by id.</summary>

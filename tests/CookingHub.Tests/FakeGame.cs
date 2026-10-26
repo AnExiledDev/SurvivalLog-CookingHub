@@ -164,6 +164,8 @@ internal sealed class FakeGame : ICookGame
     private Stove OpenStove() =>
         new(StoveId, Workbench, Bag, MaxFood, false, IsCooking, 0, Allowed, Pot.ToList(), Forecasts.ToList(), "Stove", 1f, 0, BurnsFuel ? new Fuel(FuelSlots, FuelUsed, FuelPreferred.ToList(), FuelStock.ToList()) : null, SlotsByUnit);
 
+    public bool IsLoaded() => Override is not CookRead.NoGame;
+
     public CookRead Read() => Override ?? new CookRead.Ready(Kitchen());
 
     public bool MoveStack(long instanceId, long fromOwnerId, long toOwnerId)

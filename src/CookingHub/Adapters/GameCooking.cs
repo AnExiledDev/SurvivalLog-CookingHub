@@ -37,6 +37,20 @@ internal sealed partial class GameCooking : ICookGame
         _log = log;
     }
 
+    public bool IsLoaded()
+    {
+        try
+        {
+            return LoadedGame() != null;
+        }
+        catch (Exception ex)
+        {
+            ReportOnce("load check", ex);
+
+            return false;
+        }
+    }
+
     public CookRead Read()
     {
         try
@@ -225,7 +239,7 @@ internal sealed partial class GameCooking : ICookGame
             var item = available[i];
 
             if (item == null || item.ItemCount <= 0 || !book.Items.TryGetValue(item.ItemConfigId, out var known) || !known.CanCook) continue;
-            if (item.OwnerId != roleId && IsSetApart(item.OwnerId)) continue;
+            if (item.OwnerId != roleId && places.IsSetApart(item.OwnerId)) continue;
 
             stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)));
         }
@@ -311,7 +325,7 @@ internal sealed partial class GameCooking : ICookGame
             var item = available[i];
 
             if (item == null || item.ItemCount <= 0 || !kinds.Contains(item.ItemConfigId)) continue;
-            if (item.OwnerId != roleId && IsSetApart(item.OwnerId)) continue;
+            if (item.OwnerId != roleId && places.IsSetApart(item.OwnerId)) continue;
             if (config.Get_Config_Item(item.ItemConfigId) is not { Burnable: true }) continue;
 
             stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)) with { Count = item.ItemCount });
@@ -606,6 +620,7 @@ internal sealed partial class GameCooking : ICookGame
         private readonly long _roleId;
         private readonly bool _isChinese;
         private readonly Dictionary<long, string> _names = new();
+        private readonly Dictionary<long, bool> _setApart = new();
 
         public Places(ConfigManager config, AgentManager agents, long roleId, bool isChinese)
         {
@@ -629,21 +644,22 @@ internal sealed partial class GameCooking : ICookGame
             return name;
         }
 
+        /// <summary>Asked for every stack the player can reach, and a few storages hold most of them, so each owner is looked up once.</summary>
+        public bool IsSetApart(long ownerId)
+        {
+            if (_setApart.TryGetValue(ownerId, out var known)) return known;
+
+            return _setApart[ownerId] = GameCooking.IsSetApart(ownerId);
+        }
+
         private string? FurnitureName(long ownerId)
         {
-            var furnitures = _agents.GetAllFurnitures();
+            var furniture = _agents.GetAgent(ownerId)?.TryCast<Furniture>();
             var rows = _config._Config_Furniture_Dict;
 
-            for (var i = 0; furnitures != null && rows != null && i < furnitures.Count; i++)
-            {
-                var furniture = furnitures[i];
+            if (furniture == null || rows == null || !rows.ContainsKey(furniture.AgentConfigId)) return null;
 
-                if (furniture?.InstanceId != ownerId || !rows.ContainsKey(furniture.AgentConfigId)) continue;
-
-                return Translate(_config, rows[furniture.AgentConfigId]?.Name);
-            }
-
-            return null;
+            return Translate(_config, rows[furniture.AgentConfigId]?.Name);
         }
     }
 }

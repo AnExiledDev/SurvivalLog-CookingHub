@@ -154,6 +154,9 @@ public abstract record CookRead
 /// <summary>The game's side of the mod: reading the kitchen, and moving a stack of food from one owner to another.</summary>
 public interface ICookGame
 {
+    /// <summary>True while a save is loaded and the player is in the world after the disaster; far cheaper than Read.</summary>
+    bool IsLoaded();
+
     CookRead Read();
 
     /// <summary>
