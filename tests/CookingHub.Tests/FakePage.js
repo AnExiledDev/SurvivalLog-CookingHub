@@ -98,7 +98,18 @@ var FakeElement = class {
   setAttribute(name, value) { this.attrs[name] = String(value); }
 
   addEventListener(type, listener) {
+    listenerCount++;
     (this.listeners[type] = this.listeners[type] || []).push(listener);
+  }
+
+  // On the page while its top ancestor is one of a document's own roots, as in a browser.
+  get isConnected() { return !!documentOf(this); }
+
+  // A live list, as in a browser: it sees cards the page adds after it was asked for.
+  getElementsByClassName(name) {
+    var element = this;
+
+    return liveList(function () { return descendantsOf([element]).filter(function (child) { return child.classList.contains(name); }); });
   }
 
   // A fragment's children move into the parent, as in a browser.
@@ -216,19 +227,70 @@ function descendantsOf(roots) {
   return found;
 }
 
+// Every listener the script added on any element or document, so a test can see that redraws add none.
+var listenerCount = 0;
+
+// A list that is read afresh on every index and length, as a browser's live HTMLCollection is.
+function liveList(find) {
+  return new Proxy({}, {
+    get: function (target, key) {
+      var found = find();
+
+      if (key === 'length') return found.length;
+      if (typeof key === 'string' && /^\d+$/.test(key)) return found[Number(key)];
+
+      return undefined;
+    }
+  });
+}
+
+// The document an element is on, or null once it was taken off the page.
+function documentOf(element) {
+  var top = element;
+
+  while (top.parentElement) top = top.parentElement;
+
+  return top.ownerRoot || null;
+}
+
 var FakeDocument = class {
   constructor() {
     this.head = new FakeElement('head');
     this.body = new FakeElement('body');
+    this.head.ownerRoot = this;
+    this.body.ownerRoot = this;
+    // Listeners on the document itself: heard while an event travels down (captures) or after it bubbled up.
+    this.listeners = {};
+    this.captures = {};
+    // How many lookups and new nodes the page cost, so a test can see that a page check with nothing new costs none.
+    this.lookups = 0;
+    this.queries = 0;
+    this.made = 0;
   }
 
-  createElement(tagName) { return new FakeElement(tagName); }
+  addEventListener(type, listener, isCapture) {
+    var table = isCapture ? this.captures : this.listeners;
 
-  createElementNS(namespace, tagName) { return new FakeElement(tagName); }
+    listenerCount++;
+    (table[type] = table[type] || []).push(listener);
+  }
+
+  createElement(tagName) {
+    this.made++;
+
+    return new FakeElement(tagName);
+  }
+
+  createElementNS(namespace, tagName) {
+    this.made++;
+
+    return new FakeElement(tagName);
+  }
 
   createTextNode(text) {
     var node = new FakeElement('#text');
 
+    this.made++;
     node.textContent = text;
 
     return node;
@@ -237,10 +299,22 @@ var FakeDocument = class {
   createDocumentFragment() { return new FakeElement('#fragment'); }
 
   getElementById(id) {
+    this.lookups++;
+
     return descendantsOf([this.head, this.body]).filter(function (element) { return element.id === id; })[0] || null;
   }
 
+  getElementsByTagName(tagName) {
+    var doc = this;
+
+    return liveList(function () {
+      return descendantsOf([doc.head, doc.body]).filter(function (element) { return element.tagName === tagName.toUpperCase(); });
+    });
+  }
+
   querySelectorAll(selector) {
+    this.queries++;
+
     return descendantsOf([this.head, this.body]).filter(function (element) { return element.matches(selector); });
   }
 
@@ -382,16 +456,40 @@ function hudButton() {
   return hudPage().querySelector('.ch-hud-btn');
 }
 
-// An event of any type, bubbling from the target as focusin, focusout and input do in a browser.
-function fire(target, type, extra) {
+// An event of any type as a browser sends it: down through the document's capturing listeners first, then bubbling up
+// from the target through its ancestors to the document, until a listener stops it. Listeners on the node that
+// stopped it still all hear it.
+function dispatch(target, type, extra) {
   var isStopped = false;
-  var event = { type: type, target: target, stopPropagation: function () { isStopped = true; } };
+  var event = { type: type, target: target, relatedTarget: null, stopPropagation: function () { isStopped = true; } };
+  var doc = documentOf(target);
+  var hear = function (listeners) { (listeners || []).slice().forEach(function (listener) { listener(event); }); };
 
   Object.keys(extra || {}).forEach(function (key) { event[key] = extra[key]; });
 
-  for (var node = target; node && !isStopped; node = node.parentElement) {
-    (node.listeners[type] || []).slice().forEach(function (listener) { listener(event); });
-  }
+  if (doc) hear(doc.captures[type]);
+
+  for (var node = target; node && !isStopped; node = node.parentElement) hear(node.listeners[type]);
+
+  if (doc && !isStopped) hear(doc.listeners[type]);
+}
+
+// focusin, focusout and input bubble the same way.
+function fire(target, type, extra) {
+  dispatch(target, type, extra);
+}
+
+// The cursor moving onto node (or off everything, for null): the node it leaves hears mouseout, if it is still on the
+// page, and node hears mouseover, each naming the other as relatedTarget.
+var pointed = null;
+
+function pointTo(node) {
+  var from = pointed;
+
+  pointed = node;
+
+  if (from && from.isConnected) dispatch(from, 'mouseout', { relatedTarget: node });
+  if (node) dispatch(node, 'mouseover', { relatedTarget: from });
 }
 
 // Typing into a text box: it takes focus, its value changes, and the page hears the input.
@@ -404,10 +502,5 @@ function type(input, text) {
 // A click as the game's click-through delivers one: dispatched on whatever is under the pointer, greyed buttons
 // included, bubbling up until a listener stops it (webui-core.js:33-36).
 function click(target) {
-  var isStopped = false;
-  var event = { target: target, stopPropagation: function () { isStopped = true; } };
-
-  for (var node = target; node && !isStopped; node = node.parentElement) {
-    (node.listeners.click || []).slice().forEach(function (listener) { listener(event); });
-  }
+  dispatch(target, 'click');
 }

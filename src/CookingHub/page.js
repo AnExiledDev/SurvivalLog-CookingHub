@@ -33,6 +33,14 @@
   var busyTimer = 0;
   var hasReportedPageAccess = false;
   var hasReportedOddsDrawn = false;
+  // Root.html's iframes as a live list, held once instead of searched for on every page check.
+  var frames = document.getElementsByTagName('iframe');
+  // Something may still be drawn on a cooking screen; while nothing is and there is nothing to draw, a page check
+  // does nothing at all.
+  var isAnyDrawn = false;
+  // The words the plugin last handed over; new ones (the game's language changed) draw everything again.
+  var wordsSeen = window.__slcookinghubWords;
+  var wordsVersion = 0;
 
   // The plugin hands the words over before its first call, so a missing one only shows its key.
   function say(key) {
@@ -183,7 +191,11 @@
   // The cooking screen is a same-origin iframe, so its document can be reached from here; polled because the game
   // creates and drops that iframe whenever it likes, and redraws the forecast cards on its own.
   function patchPages() {
-    var frames = document.querySelectorAll('iframe');
+    noticeWords();
+
+    if (!overlay.show && !isAnyDrawn) return;
+
+    var isAllReached = true;
 
     for (var i = 0; i < frames.length; i++) {
       var src = frames[i].src || '';
@@ -199,12 +211,28 @@
       if (!doc) {
         if (!hasReportedPageAccess) send('diag|cannot reach a game page document (root ' + location.protocol + ', iframe ' + src + ')');
         hasReportedPageAccess = true;
+        isAllReached = false;
         continue;
       }
 
       drawStation(doc, frames[i].contentWindow);
       drawOdds(doc, frames[i].contentWindow);
     }
+
+    // With nothing to show, every screen reached was just cleared.
+    isAnyDrawn = overlay.show || !isAllReached;
+  }
+
+  // The words come over again whenever the game's language changes, and everything drawn in the old ones is drawn again.
+  function noticeWords() {
+    var words = window.__slcookinghubWords;
+
+    if (words === wordsSeen) return;
+
+    wordsSeen = words;
+    wordsVersion++;
+    catVersion++;
+    overlayVersion++;
   }
 
   function patchPagesSafely() {
@@ -306,6 +334,7 @@
     }
 
     addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
+    delegate(doc);
     doc.__chStation = true;
 
     var section = doc.getElementById('recipeSection');
@@ -333,6 +362,7 @@
     doc.__chStation = false;
     bookDrawn.list = null;
     doc.querySelectorAll('.' + OURS).forEach(function (node) { node.remove(); });
+    doc.__chHover = null;
     hideOwnTip(doc);
 
     var list = doc.getElementById('recipeList');
@@ -359,19 +389,54 @@
     return overlayVersion + ':' + station.version;
   }
 
-  // A button on a game page: the page tells the game where its interactive parts are, so a click on it reaches it,
-  // and the click stops here so the row under it does not take it too.
+  // A button on a game page: the page tells the game where its interactive parts are, so a click on it reaches it.
+  // The press is marked on the node and heard by the one listener on its document, so no node carries its own.
   function pageButton(doc, tag, className, content, onPress) {
     var node = make(doc, tag, className + ' interactive-btn ' + OURS, content);
 
     node.setAttribute('data-interactive', '');
-    node.addEventListener('click', function (e) {
-      e.stopPropagation();
-
-      if (!node.disabled) onPress();
-    });
+    node.__chPress = onPress;
 
     return node;
+  }
+
+  // One listener per kind on each game page document, set once. Clicks are heard while they travel down, so a click on
+  // one of our buttons stops before the row under it, and the game's own handlers there, can take it too. Tooltips
+  // follow the cursor from one marked row to the next.
+  function delegate(doc) {
+    if (doc.__chDelegated) return;
+
+    doc.__chDelegated = true;
+    doc.addEventListener('click', function (e) {
+      var node = marked(e.target, '__chPress');
+
+      if (!node) return;
+
+      e.stopPropagation();
+
+      if (!node.disabled) node.__chPress();
+    }, true);
+    doc.addEventListener('mouseover', function (e) { pointAt(doc, marked(e.target, '__chTip')); }, true);
+    doc.addEventListener('mouseout', function (e) { pointAt(doc, marked(e.relatedTarget, '__chTip')); }, true);
+  }
+
+  // The nearest node from here up that carries the mark.
+  function marked(node, mark) {
+    for (; node; node = node.parentNode) {
+      if (node[mark]) return node;
+    }
+
+    return null;
+  }
+
+  // The cursor is now over row, or over none of ours: the tooltip the last one opened goes, and row's own shows.
+  function pointAt(doc, row) {
+    if (row === doc.__chHover) return;
+    if (doc.__chHover) hideOwnTip(doc);
+
+    doc.__chHover = row;
+
+    if (row) row.__chTip();
   }
 
   function choose(change) {
@@ -384,9 +449,14 @@
 
   // Built once per screen so the search box keeps its cursor; only the labels and the lit choice change after that.
   function drawBar(doc, section, list) {
-    var tabs = stationTabs();
-    var tabIds = tabs.map(function (t) { return t[0]; }).join(',');
     var bar = firstChildWithClass(section, 'ch-bar');
+    var drawnKey = stationKey();
+
+    // Everything the bar shows comes from the overlay, the choices and the words, which the key counts.
+    if (bar && bar.__chDrawn === drawnKey) return;
+
+    var tabs = stationTabs();
+    var tabIds = tabs.map(function (t) { return t[0]; }).join(',') + '|' + wordsVersion;
 
     // A new set of tabs builds the bar again; that only happens when the setting changes.
     if (bar && bar.getAttribute('data-tabs') !== tabIds) {
@@ -431,6 +501,8 @@
     kids(sorts).slice(1).forEach(function (chip, i) {
       setClass(chip, 'ch-chip interactive-btn' + (station.sort === STATION_SORTS[i][0] ? ' ch-on' : ''));
     });
+
+    bar.__chDrawn = drawnKey;
   }
 
   // Writes only what differs, so a page check that finds nothing new changes nothing on the page.
@@ -630,15 +702,21 @@
 
     if (!row.hasAttribute('data-ch-class')) row.setAttribute('data-ch-class', row.className);
 
+    var isGroup = !recipe.craftLocked && recipe.variantCount > 1;
+    var isOpen = !!dish && !recipe.craftLocked && !isGroup && dish.state !== 'locked' && !dish.setAside;
+    var gameClass = row.getAttribute('data-ch-class');
+
     row.setAttribute('data-ch', key);
-    row.className = row.getAttribute('data-ch-class');
+    // The row's class is written once, and only when it differs, so the page restyles it only on a real change.
+    setClass(row, isOpen && recipe.status === 0 && dish.state === 'ready'
+      ? gameClass.split(' ').filter(function (name) { return name !== 'insuff'; }).join(' ') + ' fillable ch-storage'
+      : gameClass);
     removeOurs(row);
 
     if (!dish) return;
 
     var body = firstChildWithClass(row, 'book-bd') || row;
     var gameButton = firstChildWithClass(row, 'st-fill') || firstChildWithClass(row, 'st-ready');
-    var isGroup = !recipe.craftLocked && recipe.variantCount > 1;
 
     removeOurs(body);
     body.appendChild(whereLine(doc, dish));
@@ -658,7 +736,6 @@
     }
 
     if (recipe.status === 0 && dish.state === 'ready') {
-      row.className = row.className.split(' ').filter(function (name) { return name !== 'insuff'; }).join(' ') + ' fillable ch-storage';
       row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
     }
 
@@ -718,6 +795,7 @@
     if (station.tab === 'book') {
       if (view) {
         view.remove();
+        doc.__chHover = null;
         hideOwnTip(doc);
       }
 
@@ -726,23 +804,54 @@
 
     if (view && view.getAttribute('data-key') === key) return;
 
-    // The hovered row is about to go, and a removed row never hears the cursor leave.
-    hideOwnTip(doc);
+    // The view stays and keeps its scroll; only the rows whose drawing changed are made again.
+    if (!view) view = section.appendChild(make(doc, 'div', 'ch-view ' + OURS));
 
-    var top = view ? view.scrollTop : 0;
-    var fresh = make(doc, 'div', 'ch-view ' + OURS);
+    view.setAttribute('data-key', key);
 
-    fresh.setAttribute('data-key', key);
+    var rows = [];
+    var add = function (rowKey, build) { rows.push([rowKey, build]); };
 
-    if (station.tab === 'now') fillNow(doc, fresh, win);
-    else if (station.tab === 'unlearned') fillUnlearned(doc, fresh, win);
-    else if (station.tab === 'queue') fillQueue(doc, fresh, win);
-    else fillPantry(doc, fresh, win);
+    if (station.tab === 'now') fillNow(doc, add, win);
+    else if (station.tab === 'unlearned') fillUnlearned(doc, add, win);
+    else if (station.tab === 'queue') fillQueue(doc, add, win);
+    else fillPantry(doc, add, win);
 
-    if (view) view.remove();
+    placeRows(doc, view, rows);
+  }
 
-    section.appendChild(fresh);
-    fresh.scrollTop = top;
+  // Puts the rows in the view in order, keeping each node whose key it had last time and making only the new ones.
+  // A key is everything the row is drawn from, so a kept row is already right.
+  function placeRows(doc, view, rows) {
+    var before = view.__chRows || {};
+    var now = {};
+    var prefix = station.tab + ':' + catVersion + ':' + (overlay.queueFull ? 1 : 0) + ':' + (overlay.cooking ? 1 : 0) + ':';
+
+    rows.forEach(function (row, at) {
+      var key = prefix + row[0];
+
+      while (now[key]) key += '+';
+
+      var node = before[key];
+
+      if (node) delete before[key];
+      else node = row[1]();
+
+      now[key] = node;
+
+      if (view.children[at] !== node) view.insertBefore(node, view.children[at] || null);
+    });
+
+    Object.keys(before).forEach(function (key) {
+      var node = before[key];
+
+      // A removed row never hears the cursor leave.
+      if (node === doc.__chHover) pointAt(doc, null);
+
+      node.remove();
+    });
+
+    view.__chRows = now;
   }
 
   // What this stove can make from the bag and every storage, the dish whose food spoils soonest first.
@@ -759,118 +868,127 @@
     });
   }
 
-  function fillNow(doc, view, win) {
+  // Each fill hands add a key and a way to build every row it shows, in order; drawView keeps the rows it already has.
+  function fillNow(doc, add, win) {
     var shown = cookNowDishes().filter(function (dish) {
       return matchesFilter({}, dish) && matchesSearch(recipeOf(dish.id).name, dish);
     });
 
-    view.appendChild(make(doc, 'div', 'ch-sub', say('nowNote')));
+    add('note', function () { return make(doc, 'div', 'ch-sub', say('nowNote')); });
 
-    if (!shown.length) view.appendChild(make(doc, 'div', 'ch-sub', say('nowNone')));
+    if (!shown.length) add('none', function () { return make(doc, 'div', 'ch-sub', say('nowNone')); });
 
     shown.forEach(function (dish) {
-      var row = viewRow(doc, recipeOf(dish.id), recipeOf(dish.id).name, whereLine(doc, dish), 'fillable');
+      add('d' + dish.id + ':' + dishVersion[dish.id], function () {
+        var row = viewRow(doc, recipeOf(dish.id), recipeOf(dish.id).name, whereLine(doc, dish), 'fillable');
 
-      if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
+        if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
 
-      addGives(doc, row.children[1], dish.gives);
-      tagForInfoPack(row, recipeOf(dish.id).dish);
-      recipeTip(doc, win, row, dish.id);
+        addGives(doc, row.children[1], dish.gives);
+        tagForInfoPack(row, recipeOf(dish.id).dish);
+        recipeTip(doc, win, row, dish.id);
 
-      if (dish.unlearned) row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('unlearnedChip')));
-      if (dish.hours != null) row.appendChild(spoilChip(doc, dish.hours));
-      if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
+        if (dish.unlearned) row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('unlearnedChip')));
+        if (dish.hours != null) row.appendChild(spoilChip(doc, dish.hours));
+        if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
 
-      row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
-      addQueueButton(doc, row, dish.id);
-      view.appendChild(row);
+        row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+        addQueueButton(doc, row, dish.id);
+
+        return row;
+      });
     });
   }
 
   // The recipes this stove cooks that the game's book does not list yet, the ones the player's food covers first.
-  function fillUnlearned(doc, view, win) {
+  function fillUnlearned(doc, add, win) {
     var shown = (overlay.book || []).filter(function (dish) {
       return dish.unlearned && matchesFilter({}, dish) && matchesSearch(recipeOf(dish.id).name, dish);
     }).sort(function (a, b) {
       return (isFree(b) ? 1 : 0) - (isFree(a) ? 1 : 0) || (station.sort !== 'none' ? sortValue(b) - sortValue(a) : 0) || a.id - b.id;
     });
 
-    view.appendChild(make(doc, 'div', 'ch-sub', say('unlearnedNote')));
+    add('note', function () { return make(doc, 'div', 'ch-sub', say('unlearnedNote')); });
 
-    if (!shown.length) view.appendChild(make(doc, 'div', 'ch-sub', say('unlearnedNone')));
+    if (!shown.length) add('none', function () { return make(doc, 'div', 'ch-sub', say('unlearnedNone')); });
 
     shown.forEach(function (dish) {
-      var recipe = recipeOf(dish.id);
-      var row = viewRow(doc, recipe, recipe.name, whereLine(doc, dish), isFree(dish) ? 'fillable' : 'insuff');
+      add('d' + dish.id + ':' + dishVersion[dish.id], function () {
+        var recipe = recipeOf(dish.id);
+        var row = viewRow(doc, recipe, recipe.name, whereLine(doc, dish), isFree(dish) ? 'fillable' : 'insuff');
 
-      if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
+        if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
 
-      addGives(doc, row.children[1], dish.gives);
-      tagForInfoPack(row, recipe.dish);
-      recipeTip(doc, win, row, dish.id);
+        addGives(doc, row.children[1], dish.gives);
+        tagForInfoPack(row, recipe.dish);
+        recipeTip(doc, win, row, dish.id);
 
-      if (dish.showLevel > 0) row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('showsAt', dish.showLevel)));
-      if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
+        if (dish.showLevel > 0) row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('showsAt', dish.showLevel)));
+        if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
 
-      if (isFree(dish)) {
-        row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
-        addQueueButton(doc, row, dish.id);
-      }
+        if (isFree(dish)) {
+          row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+          addQueueButton(doc, row, dish.id);
+        }
 
-      view.appendChild(row);
+        return row;
+      });
     });
   }
 
   // This stove's queue in the order it cooks, each with what its food needs and a button to take it off. A dish with
   // no food set aside is short and waits.
-  function fillQueue(doc, view, win) {
+  function fillQueue(doc, add, win) {
     var queue = overlay.queue || [];
     var covered = overlay.queueCovered || [];
     var byId = bookById();
 
-    view.appendChild(make(doc, 'div', 'ch-sub', queue.length ? say('queueNote') : say('queueNone')));
+    add(queue.length ? 'note' : 'none', function () { return make(doc, 'div', 'ch-sub', queue.length ? say('queueNote') : say('queueNone')); });
 
     queue.forEach(function (id, i) {
-      var recipe = recipeOf(id);
       var dish = byId[id];
       var isCovered = covered[i] !== false;
-      var row = viewRow(doc, recipe, (i + 1) + '. ' + recipe.name, dish ? whereLine(doc, dish) : null, isCovered ? 'fillable' : 'insuff');
 
-      if (dish) addGives(doc, row.children[1], dish.gives);
+      add('q' + i + ':' + id + ':' + (dish ? dishVersion[id] : '-') + ':' + (isCovered ? 1 : 0), function () {
+        var recipe = recipeOf(id);
+        var row = viewRow(doc, recipe, (i + 1) + '. ' + recipe.name, dish ? whereLine(doc, dish) : null, isCovered ? 'fillable' : 'insuff');
 
-      recipeTip(doc, win, row, id);
-      row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say(isCovered ? 'waiting' : 'queueShortChip')));
-      row.appendChild(pageButton(doc, 'span', 'ch-x', say('unqueue'), function () { sendAction('unqueue|' + id); }));
-      view.appendChild(row);
+        if (dish) addGives(doc, row.children[1], dish.gives);
+
+        recipeTip(doc, win, row, id);
+        row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say(isCovered ? 'waiting' : 'queueShortChip')));
+        row.appendChild(pageButton(doc, 'span', 'ch-x', say('unqueue'), function () { sendAction('unqueue|' + id); }));
+
+        return row;
+      });
     });
   }
 
   // Every food the player has, soonest to spoil first; a click puts one in the pot from wherever it is kept.
-  function fillPantry(doc, view, win) {
+  function fillPantry(doc, add, win) {
     var shelves = overlay.pantry || [];
 
-    view.appendChild(make(doc, 'div', 'ch-sub', shelves.length ? say('pantryNote') : say('pEmpty')));
+    add(shelves.length ? 'note' : 'none', function () { return make(doc, 'div', 'ch-sub', shelves.length ? say('pantryNote') : say('pEmpty')); });
 
     shelves.forEach(function (s) {
-      var item = itemOf(s.item);
-      var name = item.name + ' x' + s.count + (s.spoiled > 0 ? ', ' + say('pSpoiled', s.spoiled) : '');
-      var row = viewRow(doc, item, name, make(doc, 'div', 'book-cost', (s.places || []).join(', ')), s.count > 0 ? 'fillable' : 'insuff');
+      add('s' + JSON.stringify(s), function () {
+        var item = itemOf(s.item);
+        var name = item.name + ' x' + s.count + (s.spoiled > 0 ? ', ' + say('pSpoiled', s.spoiled) : '');
+        var row = viewRow(doc, item, name, make(doc, 'div', 'book-cost', (s.places || []).join(', ')), s.count > 0 ? 'fillable' : 'insuff');
 
-      addGives(doc, row.children[1], item.gives);
-      tagForInfoPack(row, item.id);
-      itemTip(doc, win, row, item);
-      row.appendChild(s.spoiled > 0 && s.count === 0 ? make(doc, 'span', 'ch-sp ch-bad', say('spoiledWord')) : spoilChip(doc, s.hours));
+        addGives(doc, row.children[1], item.gives);
+        tagForInfoPack(row, item.id);
+        itemTip(doc, win, row, item);
+        row.appendChild(s.spoiled > 0 && s.count === 0 ? make(doc, 'span', 'ch-sp ch-bad', say('spoiledWord')) : spoilChip(doc, s.hours));
 
-      if (s.count > 0 && !overlay.cooking) {
-        row.className += ' interactive-btn';
-        row.setAttribute('data-interactive', '');
-        row.addEventListener('click', function (e) {
-          e.stopPropagation();
-          sendAction('add|' + s.item);
-        });
-      }
+        if (s.count > 0 && !overlay.cooking) {
+          row.className += ' interactive-btn';
+          row.setAttribute('data-interactive', '');
+          row.__chPress = function () { sendAction('add|' + s.item); };
+        }
 
-      view.appendChild(row);
+        return row;
+      });
     });
   }
 
@@ -959,11 +1077,11 @@
   }
 
   // Without Info Pack: the cooking page's own tooltip, written the way its recipe rows write it (name first).
+  // The tooltip is marked on the row and shown by the page document's one cursor listener (delegate).
   function recipeTip(doc, win, row, id) {
-    row.addEventListener('mouseenter', function () {
+    row.__chTip = function () {
       if (!hasInfoPack(win)) showOwnTip(doc, recipeTipText(win, id));
-    });
-    row.addEventListener('mouseleave', function () { hideOwnTip(doc); });
+    };
   }
 
   function recipeTipText(win, id) {
@@ -985,7 +1103,7 @@
 
   // Without Info Pack: a food row shows the tooltip through the page's own showItemTip, as its bag slots do.
   function itemTip(doc, win, row, item) {
-    row.addEventListener('mouseenter', function () {
+    row.__chTip = function () {
       var tip = doc.getElementById('recipeTooltip');
 
       if (hasInfoPack(win)) return;
@@ -994,8 +1112,7 @@
       else showOwnTip(doc, item.name);
 
       if (tip) tip.__chOwned = true;
-    });
-    row.addEventListener('mouseleave', function () { hideOwnTip(doc); });
+    };
   }
 
   function showOwnTip(doc, content) {
@@ -1029,6 +1146,15 @@
 
   // ---------- the stove line, Repeat last, fuel ----------
 
+  // A part of the game's page found once and held on its document while it is still on the page.
+  function heldPart(doc, slot, selector) {
+    var node = doc[slot];
+
+    if (node && node.isConnected) return node;
+
+    return (doc[slot] = doc.querySelector(selector));
+  }
+
   // Puts the node build makes under parent, before `before`, unless the one already there was drawn for the same key.
   function keepDrawn(doc, id, key, parent, before, build) {
     var existing = doc.getElementById(id);
@@ -1045,7 +1171,7 @@
   }
 
   function drawStoveLine(doc) {
-    var actions = doc.querySelector('.action-buttons');
+    var actions = heldPart(doc, '__chActions', '.action-buttons');
     var stove = overlay.stove;
 
     var key = stove ? [stove.name, stove.speed, stove.bonus, stove.cookSecs, catVersion].join('|') : '';
@@ -1074,7 +1200,7 @@
 
   // Refills the pot with the dish this stove last started and starts it again: only while it stands empty and idle.
   function drawRepeat(doc) {
-    var actions = doc.querySelector('.action-buttons');
+    var actions = heldPart(doc, '__chActions', '.action-buttons');
     var isShown = overlay.last != null && !overlay.cooking && overlay.potEmpty;
 
     keepDrawn(doc, 'ch-repeat', isShown + ':' + catVersion + ':' + overlay.last, actions, null, isShown && function () {
@@ -1084,7 +1210,7 @@
 
   // Fuel of the kinds this stove already burns, from the bag and every storage.
   function drawTopUp(doc) {
-    var header = doc.querySelector('.fuel-section-header');
+    var header = heldPart(doc, '__chFuelHeader', '.fuel-section-header');
     var fuel = overlay.stove && overlay.stove.fuel;
     var isShown = !!fuel && fuel.known && fuel.have > 0;
 
@@ -1114,7 +1240,7 @@
   // under the wrong dish while one side catches up with the other.
   function drawOdds(doc, win) {
     var list = doc.getElementById('predictionList');
-    var cards = list ? list.querySelectorAll('.pot-card') : [];
+    var cards = list ? potCards(list) : NO_RECIPES;
     var isMatch = overlay.show && !!list && sameDishes(win, cards.length);
 
     if (!isMatch) {
@@ -1124,6 +1250,7 @@
     }
 
     addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
+    delegate(doc);
     doc.__chOdds = true;
 
     var drawn = oddsDrawnFrom();
@@ -1188,6 +1315,11 @@
     return String(seen.count);
   }
 
+  // The forecast list's cards as a live list, held on the list, so a page check does not search for them again.
+  function potCards(list) {
+    return list.__chCards || (list.__chCards = list.getElementsByClassName('pot-card'));
+  }
+
   function sameDishes(win, cardCount) {
     var entries = win && win.State && win.State.lastPredictionEntries;
     var ids = overlay.ids || [];
@@ -1219,8 +1351,9 @@
     if (nudges) nudges.remove();
   }
 
+  // Runs on every page check, so it walks the live children instead of copying them.
   function firstChildWithClass(node, name) {
-    var children = kids(node);
+    var children = node.children;
 
     for (var i = 0; i < children.length; i++) {
       if (children[i].classList.contains(name)) return children[i];
@@ -1301,15 +1434,12 @@
 
     if (n.gain != null) node.appendChild(make(doc, 'span', 'ch-gain', say('nGain', n.gain + '%')));
 
-    node.addEventListener('click', function (e) {
-      e.stopPropagation();
-      sendAction((n.kind === 'season' ? 'add' : 'swap') + '|' + n.item);
-    });
+    node.__chPress = function () { sendAction((n.kind === 'season' ? 'add' : 'swap') + '|' + n.item); };
 
     return node;
   }
 
-  setInterval(patchPagesSafely, 200);
+  setInterval(patchPagesSafely, 250);
 
   window.__slcookinghub = { status: status, catalog: catalog, cooking: setCooking };
   send('ready');

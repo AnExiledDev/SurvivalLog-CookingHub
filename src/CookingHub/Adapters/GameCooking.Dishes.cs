@@ -76,15 +76,15 @@ internal sealed partial class GameCooking : IDishGame
             {
                 if (held[i] is not { ItemCount: > 0 } item || !IsDish(config, codex, item.ItemConfigId)) continue;
 
-                dishes.Add(new ReadyDish(item.InstanceId, item.ItemConfigId, ItemName(config, config.Get_Config_Item(item.ItemConfigId)), stove.InstanceId));
+                dishes.Add(new ReadyDish(item.InstanceId, item.ItemConfigId, ItemName(config, ItemConfig(config, item.ItemConfigId)!), stove.InstanceId));
             }
         }
 
         return dishes;
     }
 
-    private static bool IsDish(ConfigManager config, CodexManager codex, int itemId) =>
-        config.Get_Config_Item(itemId) is { CanCook: false } && codex.IsCookingOutput(itemId);
+    private bool IsDish(ConfigManager config, CodexManager codex, int itemId) =>
+        ItemConfig(config, itemId) is { CanCook: false } && codex.IsCookingOutput(itemId);
 
     private List<DishStorage> ReadShelves(ReadyDish dish)
     {
@@ -94,7 +94,7 @@ internal sealed partial class GameCooking : IDishGame
         if (game == null || game.Value.World._ItemManager is not { } items || Find(items, dish) is not { } item) return shelves;
 
         var (_, config, agents, role) = game.Value;
-        var itemConfig = config.Get_Config_Item(dish.ItemId);
+        var itemConfig = ItemConfig(config, dish.ItemId);
         var places = PlacesFor(config, agents, role.InstanceId, GameLanguage.IsChinese());
         var daysLeft = DaysLeft(itemConfig?.Life ?? 0, item);
 

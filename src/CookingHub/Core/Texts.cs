@@ -20,6 +20,7 @@ public static class Texts
     public static readonly Phrase NotReady = new("Can't cook right now: {0}.", "现在无法烹饪：{0}。");
     public static readonly Phrase Away = new("you are away from home", "你不在家中");
     public static readonly Phrase ReadFailed = new("your food could not be read, see " + Log, "无法读取食材，详见 " + Log);
+    public static readonly Phrase Loading = new("the recipes are still being read", "菜谱仍在读取中");
     public static readonly Phrase Failed = new("Cooking Hub failed, see " + Log + ".", "Cooking Hub 出错，详见 " + Log + "。");
 
     public static readonly Phrase NoStove = new("Open a stove's cooking screen first.", "请先打开灶具的烹饪界面。");

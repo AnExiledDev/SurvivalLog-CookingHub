@@ -42,13 +42,13 @@ internal sealed partial class GameCooking
         if (game == null || furniture == null || cooking == null || cooking.IsCooking || game.Value.World._ItemManager is not { } items) return false;
 
         var config = game.Value.Config;
-        var cook = config.Get_Config_FurnitureCook(cooking.CookFurnitureId);
+        var cook = CookRow(config, cooking.CookFurnitureId);
         var ids = new Il2CppSystem.Collections.Generic.List<int>();
 
         foreach (var id in recipeIds) ids.Add(id);
 
         var matched = cook == null ? null : furniture.ValidateClientRecipeIds(ids, items.GetItemDataList(furnitureId), cook);
-        var recipe = matched is { Count: > 0 } ? config.Get_Config_CookingRecipe(matched[0]) : null;
+        var recipe = matched is { Count: > 0 } ? RecipeRow(config, matched[0]) : null;
 
         if (cook == null || recipe == null)
         {
@@ -76,7 +76,7 @@ internal sealed partial class GameCooking
         foreach (var furniture in HomeBagFurnitures(agents))
         {
             if (AgentTools.GetAgentComponent<CookingComponent>(furniture) is not { IsCooking: false, HasPendingProduct: false } cooking) continue;
-            if (config.Get_Config_FurnitureCook(cooking.CookFurnitureId) is not { } cook || cook.CookMode == HotPotMode) continue;
+            if (CookRow(config, cooking.CookFurnitureId) is not { } cook || cook.CookMode == HotPotMode) continue;
             if (HoldsAnything(items, furniture.InstanceId)) continue;
 
             var allowed = AllowedOn(config, cooking.CookFurnitureId, cook);
@@ -132,10 +132,10 @@ internal sealed partial class GameCooking
     }
 
     /// <summary>The furniture whose cooking screen is open, or 0.</summary>
-    private static long OpenStoveId()
+    private long OpenStoveId()
     {
-        var ui = GameSingleton.Existing<ReduxUISystem>();
-        var screen = Il2CppType.Of<WebUI_Cooking>();
+        var ui = Ui();
+        var screen = CookingType;
 
         if (ui == null || !ui.IsUIActive(screen)) return 0;
 

@@ -15,7 +15,7 @@ namespace CookingHub.Adapters;
 /// through the handler the panel's quick move and recipe click send their events to. Each call fails soft: an exception
 /// is logged once per kind of call and answered as a refusal.
 /// </summary>
-internal sealed partial class GameCooking : ICookGame
+internal sealed partial class GameCooking : ICookGame, IKitchenWatch
 {
     private const int FoodCategory = 1;
     private const int BurnsFuelType = 1;
@@ -31,18 +31,48 @@ internal sealed partial class GameCooking : ICookGame
     /// <summary>How long what the player has learned, and the names of where food is kept, are trusted between reads.</summary>
     private const long KeepMilliseconds = 5000;
 
+    /// <summary>How long a slice of the cookbook read may take in one frame.</summary>
+    private static readonly long SliceTicks = (long)(2.0 * System.Diagnostics.Stopwatch.Frequency / 1000.0);
+
+    /// <summary>A cookbook read that failed is tried again after this long, not every frame.</summary>
+    private const long CatalogRetryMilliseconds = 5000;
+
+    private static Il2CppSystem.Type? _cookingType;
+
     private IconIndex? _icons;
+    private System.Threading.Tasks.Task<(IconIndex Icons, string Note)>? _iconScan;
     private (IntPtr Config, bool IsChinese) _catalogKey;
     private Cookbook? _catalog;
+
+    /// <summary>Held so the config the cookbook is keyed on keeps its address while the key is in use.</summary>
+    private ConfigManager? _catalogConfig;
     private int _multiPotLevel = Kitchen.ShippedMultiPotLevel;
+
+    private SlicedJob? _catalogJob;
+    private (IntPtr Config, bool IsChinese) _catalogJobKey;
+    private long _catalogRetryAt;
+    private bool _hasCatalogFailed;
+    private long _sliceEndsAt;
+    private readonly Func<bool> _isSliceSpent;
+
+    /// <summary>The UI system, kept while the game keeps the same one: the screen is checked every frame.</summary>
+    private IntPtr _uiPointer;
+    private ReduxUISystem? _ui;
+
+    /// <summary>
+    /// The tables a read looks rows up in, kept with the config they came from (held, so its address is never reused):
+    /// each field read makes a new wrapper, and the game's own lookups log an error for every missing row.
+    /// </summary>
+    private ConfigManager? _tablesConfig;
+    private Il2CppSystem.Collections.Generic.Dictionary<int, Config_Item>? _itemTable;
+    private Il2CppSystem.Collections.Generic.Dictionary<int, Config_FurnitureCook>? _cookTable;
+    private Il2CppSystem.Collections.Generic.Dictionary<int, Config_CookingRecipe>? _recipeTable;
 
     /// <summary>The item table rows a read looks at for every stack, by item id; dropped with the tables.</summary>
     private readonly Dictionary<int, ItemRow> _itemRows = new();
-    private IntPtr _itemRowsConfig;
 
     /// <summary>Each stove kind's allowed recipes (null for all), by its cook row id; dropped with the tables.</summary>
     private readonly Dictionary<int, HashSet<int>?> _allowed = new();
-    private IntPtr _allowedConfig;
 
     private (IntPtr Record, int Level) _learnedKey;
     private long _learnedUntil;
@@ -59,6 +89,7 @@ internal sealed partial class GameCooking : ICookGame
     public GameCooking(Action<string> log)
     {
         _log = log;
+        _isSliceSpent = () => System.Diagnostics.Stopwatch.GetTimestamp() >= _sliceEndsAt;
     }
 
     public bool IsLoaded()
@@ -274,7 +305,8 @@ internal sealed partial class GameCooking : ICookGame
 
         if (!IsHome(agents)) return new CookRead.NotReady(Texts.Away.Pick(isChinese));
 
-        var book = Catalog(config, isChinese);
+        if (Catalog(config, isChinese) is not { } book) return new CookRead.NotReady((_hasCatalogFailed ? Texts.ReadFailed : Texts.Loading).Pick(isChinese));
+
         var record = AgentTools.GetAgentComponent<CookingRecordComponent>(role);
 
         if (record == null) return new CookRead.NotReady(Texts.ReadFailed.Pick(isChinese));
@@ -372,13 +404,13 @@ internal sealed partial class GameCooking : ICookGame
     /// <summary>The open cooking panel, or null. The pot is the panel's workbench; the panel's bag is where a swap puts spoiled food.</summary>
     private Stove? ReadStove(ItemManager? items, Il2CppSystem.Collections.Generic.List<ItemData>? available, ConfigManager config, AgentManager agents, long roleId, int hour, Places places)
     {
-        var ui = GameSingleton.Existing<ReduxUISystem>();
-        var screen = Il2CppType.Of<WebUI_Cooking>();
+        var ui = Ui();
+        var screen = CookingType;
 
         if (ui == null || items == null || !ui.IsUIActive(screen)) return null;
 
         var state = ui.GetStateByUI(screen)?.TryCast<State_Web_Cooking>();
-        var cook = state == null ? null : config.Get_Config_FurnitureCook(state.CookFurnitureId);
+        var cook = state == null ? null : CookRow(config, state.CookFurnitureId);
         var workbenchId = state?.WorkbenchOwnerId?.Value ?? 0;
 
         if (state == null || cook == null || workbenchId == 0) return null;
@@ -412,11 +444,7 @@ internal sealed partial class GameCooking : ICookGame
     /// <summary>The recipes a kind of stove takes, null for all: table data, read once per kind.</summary>
     private HashSet<int>? AllowedOn(ConfigManager config, int cookId, Config_FurnitureCook cook)
     {
-        if (_allowedConfig != config.Pointer)
-        {
-            _allowed.Clear();
-            _allowedConfig = config.Pointer;
-        }
+        UseTables(config);
 
         if (_allowed.TryGetValue(cookId, out var known)) return known;
 
@@ -462,7 +490,12 @@ internal sealed partial class GameCooking : ICookGame
             if (slots[i] is { Count: > 0 } slot) held.Add(slot.ConfigId);
         }
 
-        var preferred = held.Count > 0 ? held : Ints(cook.InitialFuel).ToHashSet();
+        if (held.Count == 0 && cook.InitialFuel is { } initial)
+        {
+            for (var i = 0; i < initial.Count; i++) held.Add(initial[i]);
+        }
+
+        var preferred = held;
         var maxSlots = cooking.MaxFuelSlots > 0 ? cooking.MaxFuelSlots : cook.FuelSlotCount;
 
         return new Fuel(maxSlots, slots?.Count ?? 0, preferred, ReadFuelStock(available, config, preferred, roleId, hour, places));
@@ -545,17 +578,58 @@ internal sealed partial class GameCooking : ICookGame
     /// <summary>What a read needs of an item's table row, looked up once per item and kept until the tables change.</summary>
     private ItemRow RowOf(ConfigManager config, int itemId)
     {
-        if (_itemRowsConfig != config.Pointer)
-        {
-            _itemRows.Clear();
-            _itemRowsConfig = config.Pointer;
-        }
+        UseTables(config);
 
         if (_itemRows.TryGetValue(itemId, out var known)) return known;
 
-        var row = config.Get_Config_Item(itemId);
+        var row = ItemConfig(config, itemId);
 
         return _itemRows[itemId] = row == null ? default : new ItemRow(row.Life, row.StackLimit <= 1, row.Burnable);
+    }
+
+    /// <summary>
+    /// Takes the config's tables once per config. A config the game replaced drops every row read from the old one; the
+    /// old config is held until then, so its address cannot come back as a new one's.
+    /// </summary>
+    private void UseTables(ConfigManager config)
+    {
+        var isSameConfig = _tablesConfig != null && _tablesConfig.Pointer == config.Pointer;
+
+        if (isSameConfig && _itemTable != null && _cookTable != null && _recipeTable != null) return;
+
+        if (!isSameConfig)
+        {
+            _itemRows.Clear();
+            _allowed.Clear();
+        }
+
+        // A table the game has not loaded yet is asked for again at the next lookup.
+        _tablesConfig = config;
+        _itemTable = config._Config_Item_Dict;
+        _cookTable = config._Config_FurnitureCook_Dict;
+        _recipeTable = config._Config_CookingRecipe_Dict;
+    }
+
+    /// <summary>A row of the item table, or null. The game's own Get_Config_Item logs an error for every missing row.</summary>
+    private Config_Item? ItemConfig(ConfigManager config, int itemId)
+    {
+        UseTables(config);
+
+        return _itemTable != null && _itemTable.TryGetValue(itemId, out var row) ? row : null;
+    }
+
+    private Config_FurnitureCook? CookRow(ConfigManager config, int cookId)
+    {
+        UseTables(config);
+
+        return _cookTable != null && _cookTable.TryGetValue(cookId, out var row) ? row : null;
+    }
+
+    private Config_CookingRecipe? RecipeRow(ConfigManager config, int recipeId)
+    {
+        UseTables(config);
+
+        return _recipeTable != null && _recipeTable.TryGetValue(recipeId, out var row) ? row : null;
     }
 
     /// <summary>A missing row reads as no shelf life, counted by the stack, and not fuel, as the null checks before it did.</summary>
@@ -579,68 +653,117 @@ internal sealed partial class GameCooking : ICookGame
         return (stacks, units, uses);
     }
 
-    /// <summary>The tables only change with the language, so the catalog is built once per game and language.</summary>
-    private Cookbook Catalog(ConfigManager config, bool isChinese)
+    /// <summary>
+    /// The cookbook for this game and language, or null while it is still being read (or its read failed and waits to
+    /// be tried again). The tables only change with the language, so it is read once per game and language, a slice
+    /// each frame by <see cref="AdvanceCatalog"/>: read whole, it was a hitch of over a hundred milliseconds.
+    /// </summary>
+    private Cookbook? Catalog(ConfigManager config, bool isChinese)
     {
         var key = (config.Pointer, isChinese);
 
         if (_catalog != null && _catalogKey == key) return _catalog;
+        if (_catalogJob != null && _catalogJobKey == key) return null;
+        if (_hasCatalogFailed && _catalogJobKey == key && Environment.TickCount64 < _catalogRetryAt) return null;
 
-        var recipes = ReadRecipes(config);
-        var outputs = recipes.Values.SelectMany(recipe => recipe.Outputs).ToHashSet();
+        StartCatalog(config, key);
 
-        var multiPot = config.TryGet_Config_GlobalSetting("CookingMultiPot_UnlockLevel");
+        return null;
+    }
 
-        _catalog = new Cookbook(ReadItems(config, outputs), recipes, ReadTypes(config), ReadRules(config));
-        _catalogKey = key;
-        _multiPotLevel = multiPot == null ? Kitchen.ShippedMultiPotLevel : (int)multiPot.Params2;
-        _log($"read {_catalog.Items.Count} foods and dishes, {_catalog.Recipes.Count} recipes, {_catalog.Types.Count} food types");
+    private void StartCatalog(ConfigManager config, (IntPtr Config, bool IsChinese) key)
+    {
+        _catalogJobKey = key;
+        _hasCatalogFailed = false;
+        UseTables(config);
 
-        return _catalog;
+        var recipeTable = _recipeTable;
+        var itemTable = _itemTable;
+
+        _catalogJob = new SlicedJob(CookbookBuild.Steps(
+            AreIconsIn,
+            () => KeysOf(recipeTable),
+            id => recipeTable != null && recipeTable.TryGetValue(id, out var row) && row != null ? RecipeOf(config, row) : null,
+            () => KeysOf(itemTable),
+            (id, outputs) => itemTable != null && itemTable.TryGetValue(id, out var row) && row != null ? ItemOf(config, row, outputs) : null,
+            () => ReadTypes(config),
+            () => ReadRules(config),
+            book =>
+            {
+                var multiPot = config.TryGet_Config_GlobalSetting("CookingMultiPot_UnlockLevel");
+
+                _catalog = book;
+                _catalogKey = key;
+                _catalogConfig = config;
+                _multiPotLevel = multiPot == null ? Kitchen.ShippedMultiPotLevel : (int)multiPot.Params2;
+                _log($"read {book.Items.Count} foods and dishes, {book.Recipes.Count} recipes, {book.Types.Count} food types");
+            }));
+    }
+
+    /// <summary>Starts reading the cookbook while the cooking screen is closed, so it is ready by the time the screen opens.</summary>
+    public void WarmCatalog()
+    {
+        try
+        {
+            if (LoadedGame() is { } game) Catalog(game.Config, GameLanguage.IsChinese());
+        }
+        catch (Exception ex)
+        {
+            ReportOnce("cookbook warm-up", ex);
+        }
+    }
+
+    /// <summary>One slice of the cookbook read, if one is under way. Free when none is: called every frame.</summary>
+    public void AdvanceCatalog()
+    {
+        if (_catalogJob == null) return;
+
+        try
+        {
+            _sliceEndsAt = System.Diagnostics.Stopwatch.GetTimestamp() + SliceTicks;
+
+            if (_catalogJob.Advance(_isSliceSpent)) _catalogJob = null;
+        }
+        catch (Exception ex)
+        {
+            ReportOnce("cookbook read", ex);
+            _catalogJob = null;
+            _hasCatalogFailed = true;
+            _catalogRetryAt = Environment.TickCount64 + CatalogRetryMilliseconds;
+        }
+    }
+
+    private static IReadOnlyList<int> KeysOf<T>(Il2CppSystem.Collections.Generic.Dictionary<int, T>? table)
+    {
+        var ids = new List<int>();
+
+        if (table == null) return ids;
+
+        foreach (var id in table.Keys) ids.Add(id);
+
+        return ids;
     }
 
     /// <summary>
-    /// Every food the cooking panel admits (Reducer_Web_Cooking.CheckCookingAdmission: a food that can be cooked and is
-    /// not cut first), and every dish a recipe makes. An item's type is its SubCategory, the key recipe tags match on.
+    /// A food the cooking panel admits (Reducer_Web_Cooking.CheckCookingAdmission: a food that can be cooked and is not
+    /// cut first), or a dish a recipe makes; null for any other row. An item's type is its SubCategory, the key recipe
+    /// tags match on.
     /// </summary>
-    private Dictionary<int, Item> ReadItems(ConfigManager config, HashSet<int> outputs)
+    private Item? ItemOf(ConfigManager config, Config_Item row, IReadOnlySet<int> outputs)
     {
-        var items = new Dictionary<int, Item>();
-        var rows = config._Config_Item_Dict;
+        var canCook = row.Category == FoodCategory && row.CanCook && row.CutProductId <= 0;
 
-        if (rows == null) return items;
-
-        foreach (var row in rows.Values)
-        {
-            if (row == null) continue;
-
-            var canCook = row.Category == FoodCategory && row.CanCook && row.CutProductId <= 0;
-
-            if (canCook || outputs.Contains(row.ID)) items[row.ID] = new Item(row.ID, ItemName(config, row), ItemIcon(row), row.SubCategory, row.Life, canCook, Gives(row));
-        }
-
-        return items;
+        return canCook || outputs.Contains(row.ID) ? new Item(row.ID, ItemName(config, row), ItemIcon(row), row.SubCategory, row.Life, canCook, Gives(row)) : null;
     }
 
-    private static Dictionary<int, Recipe> ReadRecipes(ConfigManager config)
+    private static Recipe RecipeOf(ConfigManager config, Config_CookingRecipe row)
     {
-        var recipes = new Dictionary<int, Recipe>();
-        var rows = config._Config_CookingRecipe_Dict;
+        var name = Translate(config, row.RecipeName) ?? NonEmpty(row.RecipeName_Local) ?? $"Recipe {row.ID}";
+        var outputs = new[] { row.FailItemID, row.NormalItemID, row.GoodItemID, row.PerfectItemID };
 
-        if (rows == null) return recipes;
-
-        foreach (var row in rows.Values)
-        {
-            if (row == null) continue;
-
-            var name = Translate(config, row.RecipeName) ?? NonEmpty(row.RecipeName_Local) ?? $"Recipe {row.ID}";
-            var outputs = new[] { row.FailItemID, row.NormalItemID, row.GoodItemID, row.PerfectItemID };
-
-            recipes[row.ID] = new Recipe(row.ID, name, Ints(row.SpecificItems), Ints(row.TagCombo), row.Tier, Ints(row.QualityMap), row.craft_level, row.show_level, row.CookTime, outputs, GroupOf(row.ID));
-        }
-
-        return recipes;
+        return new Recipe(row.ID, name, Ints(row.SpecificItems), Ints(row.TagCombo), row.Tier, Ints(row.QualityMap), row.craft_level, row.show_level, row.CookTime, outputs, GroupOf(row.ID));
     }
+
 
     /// <summary>
     /// The recipe the game's book lists this one under (DishCodexGrouping.Representative), or 0 for its own row. A failed
@@ -771,7 +894,7 @@ internal sealed partial class GameCooking : ICookGame
     {
         try
         {
-            return GameSingleton.Existing<ReduxUISystem>() is { } ui && ui.IsUIActive(Il2CppType.Of<WebUI_Cooking>());
+            return Ui() is { } ui && ui.IsUIActive(CookingType);
         }
         catch (Exception ex)
         {
@@ -781,7 +904,104 @@ internal sealed partial class GameCooking : ICookGame
         }
     }
 
-    private IconIndex Icons() => _icons ??= WebIcons.Load(_log);
+    /// <summary>
+    /// A cheap print of what the open cooking screen shows: which stove, its pot and bag, its size, hot pot or not,
+    /// cooking or not, and the hour, which moves spoilage. A new print means the kitchen is worth reading again. Zero
+    /// with the screen closed or on a failed read.
+    /// </summary>
+    public ulong ScreenStamp()
+    {
+        try
+        {
+            if (Ui() is not { } ui || !ui.IsUIActive(CookingType)) return 0UL;
+            if (ui.GetStateByUI(CookingType)?.TryCast<State_Web_Cooking>() is not { } state) return 0UL;
+
+            var hour = GameSingleton.Existing<BattleLogicWorld>()?._GameTimeManager?.GetHour() ?? -1;
+            var stamp = 14695981039346656037UL;
+
+            stamp = Mix(stamp, state.Pointer.ToInt64());
+            stamp = Mix(stamp, state.CurrentFurnitureId);
+            stamp = Mix(stamp, state.CookFurnitureId);
+            stamp = Mix(stamp, state.WorkbenchOwnerId?.Value ?? 0);
+            stamp = Mix(stamp, state.BagOwnerId?.Value ?? 0);
+            stamp = Mix(stamp, state.MaxFoodCount?.Value ?? -1);
+            stamp = Mix(stamp, state.HotPotMode?.Value == true ? 1 : 0);
+            stamp = Mix(stamp, state.IsCooking?.Value == true ? 1 : 0);
+            stamp = Mix(stamp, hour);
+
+            return stamp == 0UL ? 1UL : stamp;
+        }
+        catch (Exception ex)
+        {
+            ReportOnce("cooking screen print", ex);
+
+            return 0UL;
+        }
+    }
+
+    private static ulong Mix(ulong stamp, long value) => (stamp ^ (ulong)value) * 1099511628211UL;
+
+    private static Il2CppSystem.Type CookingType => _cookingType ??= Il2CppType.Of<WebUI_Cooking>();
+
+    /// <summary>The UI system, a new wrapper only when the game made a new one.</summary>
+    private ReduxUISystem? Ui()
+    {
+        var pointer = GameSingleton.Pointer<ReduxUISystem>();
+
+        if (pointer == IntPtr.Zero)
+        {
+            _ui = null;
+            _uiPointer = IntPtr.Zero;
+
+            return null;
+        }
+
+        if (pointer != _uiPointer || _ui == null)
+        {
+            _ui = GameSingleton.Existing<ReduxUISystem>();
+            _uiPointer = pointer;
+        }
+
+        return _ui;
+    }
+
+    /// <summary>Only what the icon folder read found; empty until it is in, and nothing asks before then.</summary>
+    private IconIndex Icons() => _icons ?? IconIndex.Empty;
+
+    /// <summary>
+    /// Whether the icon folder has been read, starting the read (on a worker thread) the first time it is asked. The
+    /// result is taken in here, on the main thread, so the cookbook never sees a half-built index.
+    /// </summary>
+    private bool AreIconsIn()
+    {
+        if (_icons != null) return true;
+
+        _iconScan ??= StartIconScan();
+
+        if (!_iconScan.IsCompleted) return false;
+
+        var (icons, note) = _iconScan.Status == System.Threading.Tasks.TaskStatus.RanToCompletion
+            ? _iconScan.Result
+            : (IconIndex.Empty, "no web icons, foods and dishes will show letters instead: " + (_iconScan.Exception?.GetBaseException().Message ?? "the read was cancelled"));
+
+        _icons = icons;
+        _iconScan = null;
+        _log(note);
+
+        return true;
+    }
+
+    private static System.Threading.Tasks.Task<(IconIndex Icons, string Note)> StartIconScan()
+    {
+        try
+        {
+            return WebIcons.StartScan();
+        }
+        catch (Exception ex)
+        {
+            return System.Threading.Tasks.Task.FromResult((IconIndex.Empty, "no web icons, foods and dishes will show letters instead: " + ex.Message));
+        }
+    }
 
     private static string? Translate(ConfigManager config, string? key)
     {

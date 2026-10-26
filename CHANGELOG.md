@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.7
+
+- Less stutter the first time you open a cooking screen after loading a save. The recipes are now read a little at a time in the background.
+- Less stutter while a cooking screen is open. Cooking Hub now reads the stove again only when something on it changes.
+- The game's cooking screen asks to redraw itself less often, and never while it is closed.
+- When your food changes, the Cook now, Queued and Pantry tabs redraw only the cards that changed, so the cooking screen stays smooth.
+- A Cooking Hub button pressed in the first moments after loading a save may say that the recipes are still being read. Press it again a moment later.
+- Made for Survival Log 1.1.19611.
+
 ## 0.6.6
 
 - Fixed: Cook now could show recipes you had not learned yet. It now lists only the recipes your recipe book shows.

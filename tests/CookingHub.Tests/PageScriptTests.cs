@@ -194,12 +194,12 @@ public class PageScriptTests
         var page = Station(Stocked());
 
         page.Click(StationTab("Cook now"));
-        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseenter')");
+        page.Run($"pointTo({ViewRow("Stir Fry")})");
 
         Assert.Equal("block", page.Text(Tooltip + ".style.display"));
         Assert.Equal("Stir Fry\nCan cook", page.Text(Tooltip + ".textContent"));
 
-        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseleave')");
+        page.Run("pointTo(null)");
 
         Assert.Equal("none", page.Text(Tooltip + ".style.display"));
     }
@@ -210,7 +210,7 @@ public class PageScriptTests
         var page = Station(Stocked());
 
         page.Click(StationTab("Pantry"));
-        page.Run($"fire({ViewRow("Rice")}, 'mouseenter')");
+        page.Run($"pointTo({ViewRow("Rice")})");
 
         Assert.Equal(Rice.ToString(), page.Text("cookingFrame.contentWindow.shownItem.configId"));
         Assert.Equal("Rice", page.Text(Tooltip + ".textContent"));
@@ -250,12 +250,12 @@ public class PageScriptTests
 
         page.Run("cookingFrame.contentWindow.__slipTagged = { configId: 0 }");
         page.Click(StationTab("Cook now"));
-        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseenter')");
+        page.Run($"pointTo({ViewRow("Stir Fry")})");
 
         Assert.Equal("none", page.Text(Tooltip + ".style.display"));
 
         page.Click(StationTab("Pantry"));
-        page.Run($"fire({ViewRow("Rice")}, 'mouseenter')");
+        page.Run($"pointTo({ViewRow("Rice")})");
 
         Assert.Equal("none", page.Text(Tooltip + ".style.display"));
         Assert.True(page.Is("!cookingFrame.contentWindow.shownItem"));
@@ -267,7 +267,7 @@ public class PageScriptTests
         var page = Station(Stocked());
 
         page.Click(StationTab("Cook now"));
-        page.Run($"fire({ViewRow("Stir Fry")}, 'mouseenter')");
+        page.Run($"pointTo({ViewRow("Stir Fry")})");
         page.Click(StationTab("Pantry"));
         page.Poll();
 
@@ -574,5 +574,119 @@ public class PageScriptTests
         page.Cooking(overlay.ToJsonString());
 
         Assert.Equal(readies + 1, page.Readies);
+    }
+
+    // Every listener sits on the page document, set once; rows drawn again for a new overlay or tab add none, which
+    // is what kept the cooking screen's listener count climbing with every refresh.
+    [Fact]
+    public void Redrawing_rows_for_a_new_overlay_or_tab_adds_no_listeners()
+    {
+        var kitchen = Stocked().Kitchen();
+        var overlay = CookView.Overlay(kitchen, kitchen.Stove!, isShowingOdds: true);
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+
+        var listeners = page.Text("listenerCount");
+
+        page.Cooking(OverlayDeltaTests.StirFryElsewhere(overlay));
+        page.Poll();
+        page.Click(StationTab("Pantry"));
+        page.Click(StationTab("Queued"));
+        page.Click(StationTab("Cook now"));
+
+        Assert.Equal(listeners, page.Text("listenerCount"));
+        Assert.Contains("Cellar", page.Text(ViewRow("Stir Fry") + ".textContent"));
+    }
+
+    // A cook now card whose dish did not change keeps its node, and its buttons still answer.
+    [Fact]
+    public void A_cook_now_card_whose_dish_did_not_change_is_kept_and_still_presses()
+    {
+        var kitchen = Stocked().Kitchen();
+        var overlay = CookView.Overlay(kitchen, kitchen.Stove!, isShowingOdds: true);
+        var delta = new OverlayDelta();
+        var page = new PageScript();
+
+        page.Catalog(CatalogView.Write(Book));
+        page.OpenCooking();
+        page.Run($"stationParts(cookingFrame, {StationBook}, false)");
+
+        var first = delta.Next(overlay)!;
+
+        page.Cooking(first.Json);
+        delta.Sent(first);
+        page.Poll();
+        page.Click(StationTab("Cook now"));
+        page.Run(ViewRow("Pork Rice") + ".keptFromBefore = true");
+        page.Run(ViewRow("Stir Fry") + ".keptFromBefore = true");
+        page.Cooking(delta.Next(OverlayDeltaTests.StirFryElsewhere(overlay))!.Json);
+        page.Poll();
+
+        Assert.True(page.Is(ViewRow("Pork Rice") + ".keptFromBefore"), "an unchanged card is not built again");
+        Assert.False(page.Is(ViewRow("Stir Fry") + ".keptFromBefore"), "a changed card is built again");
+        Assert.Contains("Cellar", page.Text(ViewRow("Stir Fry") + ".textContent"));
+
+        page.Click(LoadOn("Pork Rice"));
+
+        Assert.Equal(new PageCommand.Fill(PorkRice), Assert.Single(page.Sent));
+    }
+
+    // A page check that finds nothing new makes nothing on the page.
+    [Fact]
+    public void A_page_check_with_nothing_new_makes_no_nodes()
+    {
+        var page = Station(Stocked());
+
+        page.Click(StationTab("Cook now"));
+        page.Poll();
+
+        var made = page.Text("cookingPage().made");
+
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal(made, page.Text("cookingPage().made"));
+    }
+
+    // Once the plugin says no stove is open and what was drawn is cleared, a page check touches no game page at all.
+    [Fact]
+    public void With_no_stove_open_a_page_check_does_no_work_after_clearing()
+    {
+        var page = Station(Stocked());
+
+        page.Cooking(CookView.NoOverlay());
+        page.Poll();
+
+        Assert.Equal(0, Count(page, "cookingPage().querySelectorAll('.ch-st')"));
+
+        var lookups = page.Text("cookingPage().lookups");
+
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal(lookups, page.Text("cookingPage().lookups"));
+    }
+
+    // The root page's iframes are a live list held from the start, never searched for on a page check.
+    [Fact]
+    public void A_page_check_does_not_search_the_root_page_for_iframes()
+    {
+        var page = Station(Stocked());
+
+        Assert.True(page.Is("(function () { var before = document.queries; poll(); poll(); return document.queries === before; })()"));
+        Assert.Equal(1, Count(page, "cookingPage().querySelectorAll('.ch-bar')"));
+    }
+
+    // The game's language changed: the words come over again and every drawn row, kept or not, shows the new ones.
+    [Fact]
+    public void New_words_draw_the_book_rows_again_in_them()
+    {
+        var page = Station(Stocked());
+
+        page.Run("window.__slcookinghubWords = Object.assign({}, window.__slcookinghubWords, { load: 'Fill it' })");
+        page.Poll();
+
+        Assert.Equal("Fill it", page.Text("cookingPage().querySelectorAll('.book-item')[0].querySelector('.st-fill.ch-st').textContent"));
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using CookingHub.Core;
-using UnityEngine;
 
 namespace CookingHub.Adapters;
 
@@ -12,7 +11,6 @@ namespace CookingHub.Adapters;
 /// </summary>
 internal sealed class CookSession
 {
-    private const float StoveRefreshSeconds = 0.5f;
     private const float ClosedRefreshSeconds = 5f;
     private const float StartWindowSeconds = 4f;
     private const float DishSweepSeconds = 2f;
@@ -22,7 +20,7 @@ internal sealed class CookSession
     private readonly IDishGame _dishes;
     private readonly WebPage _page;
     private readonly Func<DishNote, bool> _toast;
-    private readonly Func<bool> _isCookingScreenOpen;
+    private readonly IKitchenWatch _watch;
     private readonly WebKeyboard _keyboard = new();
     private readonly Action<string> _log;
 
@@ -36,6 +34,9 @@ internal sealed class CookSession
     private Cookbook? _sentCatalog;
     private float _nextRefreshAt;
     private bool _wasCookingScreenOpen;
+    private readonly ReadPace _pace = new();
+    private bool _wasStoveRead;
+    private bool _wasHotPot;
 
     private LastCooked _last = LastCooked.None;
     private Cookbook? _book;
@@ -51,13 +52,13 @@ internal sealed class CookSession
     private readonly HashSet<long> _toldStays = new();
     private readonly DishRetry _dishRetry = new();
 
-    public CookSession(ICookGame game, IDishGame dishes, WebPage page, Func<DishNote, bool> toast, Func<bool> isCookingScreenOpen, Action<string> log)
+    public CookSession(ICookGame game, IDishGame dishes, IKitchenWatch watch, WebPage page, Func<DishNote, bool> toast, Action<string> log)
     {
         _game = game;
         _dishes = dishes;
+        _watch = watch;
         _page = page;
         _toast = toast;
-        _isCookingScreenOpen = isCookingScreenOpen;
         _log = log;
     }
 
@@ -75,21 +76,51 @@ internal sealed class CookSession
 
     public void Update()
     {
-        var now = Time.unscaledTime;
+        var now = Clock.Now;
 
         _page.KeepInstalled(now);
 
         while (PageMessages.TryTake(out var command)) HandleSafely(command);
 
+        _watch.AdvanceCatalog();
+
         if (_isPuttingDishesAway && now >= _nextDishSweepAt) PutDishesAway(now);
         if (!_queue.IsEmpty && now >= _nextQueueAt) CookQueued(now);
-        if (now >= _nextRefreshAt || HasCookingScreenFlipped()) Refresh(now);
+
+        if (HasCookingScreenFlipped())
+        {
+            _pace.Forget();
+            Refresh(now);
+        }
+        else if (_wasCookingScreenOpen)
+        {
+            RefreshOpenWhenDue(now);
+        }
+        else if (now >= _nextRefreshAt)
+        {
+            Refresh(now);
+        }
+    }
+
+    /// <summary>
+    /// With the cooking screen open, the kitchen is read on a half-second tick only when something could have changed
+    /// (ReadPace): the game refreshed the screen's bag, the screen's own state moved, or a start, an unread stove or a hot
+    /// pot needs every tick.
+    /// </summary>
+    private void RefreshOpenWhenDue(float now)
+    {
+        if (!_pace.IsTick(now)) return;
+        if (BagRefresh.TakeChanged()) _pace.Changed();
+
+        var isHurried = _startUntil > 0f || !_wasStoveRead || _wasHotPot;
+
+        if (_pace.IsDue(now, isHurried, _watch.ScreenStamp())) Refresh(now);
     }
 
     /// <summary>The game's cooking screen opening or closing is read at once, so the station view is drawn without waiting.</summary>
     private bool HasCookingScreenFlipped()
     {
-        var isOpen = _isCookingScreenOpen();
+        var isOpen = _watch.IsCookingScreenOpen();
 
         if (isOpen == _wasCookingScreenOpen) return false;
 
@@ -279,7 +310,7 @@ internal sealed class CookSession
 
         if (!pressed.IsDone || _book == null || _last.WatchedId is not { } stoveId || _last.For(stoveId) is not { } recipeId) return pressed;
 
-        AskToStart(stoveId, new[] { recipeId }, Time.unscaledTime);
+        AskToStart(stoveId, new[] { recipeId }, Clock.Now);
 
         return _book.Recipes.TryGetValue(recipeId, out var recipe) ? new Pressed(true, Texts.Starting.Say(IsChinese, recipe.Name)) : pressed;
     }
@@ -288,6 +319,7 @@ internal sealed class CookSession
     {
         _shownPrint = null;
         _delta.Forget();
+        _pace.Forget();
         _nextRefreshAt = 0f;
     }
 
@@ -297,7 +329,7 @@ internal sealed class CookSession
     /// </summary>
     private void Refresh(float now)
     {
-        if (!_isCookingScreenOpen())
+        if (!_watch.IsCookingScreenOpen())
         {
             RefreshClosed(now);
 
@@ -309,24 +341,28 @@ internal sealed class CookSession
         if (read is CookRead.NoGame) ForgetQueue();
 
         var kitchen = (read as CookRead.Ready)?.Kitchen;
-        var isStoveOpen = kitchen?.Stove != null;
 
         _last = _last.See(kitchen?.Stove);
+        _wasStoveRead = kitchen?.Stove != null;
+        _wasHotPot = kitchen?.Stove?.IsHotPot == true;
 
         if (kitchen != null) _book = kitchen.Book;
         if (kitchen?.Stove is not { IsCooking: false } || now >= _startUntil) _startUntil = 0f;
 
-        _nextRefreshAt = now + (isStoveOpen || _wasCookingScreenOpen ? StoveRefreshSeconds : ClosedRefreshSeconds);
+        _pace.Read(now);
+        _nextRefreshAt = now + ClosedRefreshSeconds;
         SendOverlay(kitchen);
     }
 
     /// <summary>
     /// With the cooking screen closed there is no stove to draw odds for, so the kitchen is not read: reading every food
     /// in every storage only to clear an overlay was most of what this mod cost while the player did something else.
+    /// The cookbook is started here instead, so it is read a slice a frame before the screen first opens.
     /// </summary>
     private void RefreshClosed(float now)
     {
         if (!_game.IsLoaded()) ForgetQueue();
+        else _watch.WarmCatalog();
 
         _last = _last.See(null);
         _startUntil = 0f;
@@ -437,7 +473,7 @@ internal sealed class CookSession
         }
 
         _page.Status(message);
-        Refresh(Time.unscaledTime);
+        Refresh(Clock.Now);
     }
 
 }

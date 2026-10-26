@@ -13,7 +13,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.6.6";
+    private const string Version = "0.6.7";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     public override void Load()
@@ -42,15 +42,15 @@ public sealed class Plugin : BasePlugin
         var session = new CookSession(
             game,
             game,
+            game,
             new WebPage(log.Write),
             note => toasts.Show(note, GameLanguage.IsChinese()),
-            game.IsCookingScreenOpen,
             log.Write);
 
         OptionalLive.Watch(isLoggingToFile, isOn => log.IsFileOn = isOn);
         log.Write($"===== Cooking Hub {Version} started");
         PageMessages.Apply(harmony, log.Write);
-        BagRefresh.Apply(harmony, log.Write);
+        BagRefresh.Apply(harmony, game.IsCookingScreenOpen, log.Write);
 
         OptionalLive.Watch(() =>
         {
