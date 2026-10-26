@@ -26,6 +26,15 @@ public class ReservationTests
     }
 
     [Fact]
+    public void A_queued_dish_sets_aside_only_the_uses_it_cooks_with_of_an_item_used_a_little_at_a_time()
+    {
+        var kitchen = new FakeGame { Stock = { S(1, Rice, count: 3), Uses(2, Pork, uses: 7) } }.Kitchen();
+        var left = Reservation.Of(kitchen, CookQueue.Empty.Add(Kitchen, PorkRice), isSpoilingFirst: true, isByUnit: false).Left;
+
+        Assert.Equal(6, Units(left, Pork));
+    }
+
+    [Fact]
     public void A_queued_dish_sets_aside_whole_stacks_when_a_fill_moves_whole_stacks()
     {
         var kitchen = new FakeGame { Stock = { S(1, Rice, count: 3), S(2, Pork, count: 3) } }.Kitchen();

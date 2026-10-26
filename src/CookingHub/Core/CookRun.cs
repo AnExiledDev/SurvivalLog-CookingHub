@@ -3,8 +3,11 @@ using System.Linq;
 
 namespace CookingHub.Core;
 
-/// <summary>One stack to move into the pot, kept by which owner: Units of its Count are wanted.</summary>
-public readonly record struct Take(long InstanceId, long OwnerId, int ItemId, int Count, int Units);
+/// <summary>
+/// One stack to move into the pot, kept by which owner: Units of its Count are wanted. IsByUse is the stack's own
+/// (Stack.IsByUse): its units go in one use at a time, each a pot item of its own.
+/// </summary>
+public readonly record struct Take(long InstanceId, long OwnerId, int ItemId, int Count, int Units, bool IsByUse = false);
 
 /// <summary>What a press did, as the line shown to the player. IsDone is false when nothing moved.</summary>
 public readonly record struct Pressed(bool IsDone, string Message);
@@ -124,8 +127,8 @@ public static class CookRun
         && stove.Forecasts.All(forecast => forecast.RecipeId != Recipe.DarkFood)
         && stove.Room >= slots;
 
-    /// <summary>The pot slots a fill takes: a slot per unit when units never share one, else a slot per stack.</summary>
-    public static int Slots(Stove stove, IReadOnlyList<Take> takes) => stove.SlotsByUnit ? takes.Sum(take => take.Units) : takes.Count;
+    /// <summary>The pot slots a fill takes: a slot per unit when units never share one (or go in one use at a time), else a slot per stack.</summary>
+    public static int Slots(Stove stove, IReadOnlyList<Take> takes) => takes.Sum(take => stove.SlotsByUnit || take.IsByUse ? take.Units : 1);
 
     /// <summary>Puts every stack in the pot back where this mod took it from, or in the panel's bag. False when one stayed.</summary>
     private static bool EmptyPot(ICookGame game, Stove stove)
@@ -265,7 +268,7 @@ public static class CookRun
 
             var wanted = System.Math.Min(stack.Count, want - units);
 
-            takes.Add(new Take(stack.InstanceId, stack.OwnerId, stack.ItemId, stack.Count, wanted));
+            takes.Add(new Take(stack.InstanceId, stack.OwnerId, stack.ItemId, stack.Count, wanted, stack.IsByUse));
             units += wanted;
         }
 

@@ -115,6 +115,43 @@ public class CookRunTests
     }
 
     [Fact]
+    public void Fill_at_the_multi_pot_level_takes_a_second_use_of_food_the_first_dish_already_used()
+    {
+        var game = new FakeGame { Stock = { S(1, Rice), Uses(3, Pork, uses: 6) } };
+
+        game.Level = Kitchen.ShippedMultiPotLevel;
+        game.Pot.Add(S(9, Wheat, owner: Workbench));
+        game.Pot.Add(S(8, Pork, owner: Workbench));
+        game.Forecasts.Add(new Forecast(StirFry, false, true));
+
+        var pressed = CookRun.Fill(game, PorkRice, true, false);
+
+        Assert.Equal("Added Pork Rice to the pot as one more dish.", pressed.Message);
+        Assert.Equal(2, game.Pot.Count(stack => stack.ItemId == Pork));
+        Assert.Equal(5, game.Stock.Single(stack => stack.InstanceId == 3).Count);
+    }
+
+    [Fact]
+    public void Fill_takes_several_uses_of_one_item_each_as_its_own_pot_item()
+    {
+        var game = new FakeGame { Stock = { Uses(1, Pork, uses: 7) } };
+
+        Assert.True(CookRun.Fill(game, Feast, true, false).IsDone);
+        Assert.Equal(3, game.Pot.Count);
+        Assert.All(game.Pot, stack => Assert.Equal(1, stack.Count));
+        Assert.Equal(4, game.Stock.Single().Count);
+    }
+
+    [Fact]
+    public void Each_use_of_an_item_used_a_little_at_a_time_takes_a_pot_slot()
+    {
+        var game = new FakeGame { MaxFood = 2, Stock = { Uses(1, Pork, uses: 7) } };
+
+        Assert.False(CookRun.Fill(game, Feast, true, false).IsDone);
+        Assert.Empty(game.Pot);
+    }
+
+    [Fact]
     public void Fill_below_the_multi_pot_level_empties_the_pot_instead()
     {
         var game = Stocked();

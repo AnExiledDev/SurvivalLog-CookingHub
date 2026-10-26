@@ -582,9 +582,14 @@
   function matchesFilter(recipe, dish) {
     if (station.filter === 'load') return isFree(dish);
     if (station.filter === 'new') return !!dish && dish.isNew;
-    if (station.filter === 'locked') return !!recipe.craftLocked || (!!dish && dish.state === 'locked');
+    if (station.filter === 'locked') return !!recipe.craftLocked || (!!dish && dish.state === 'locked') || hasLockedVariant(recipe);
 
     return true;
+  }
+
+  // A row the game folds from several dishes that make the same food: a variant the cook cannot make yet has a LockText.
+  function hasLockedVariant(recipe) {
+    return /"LockText":"[^"]/.test(recipe.variantsJson || '');
   }
 
   function matchesSearch(words, dish) {

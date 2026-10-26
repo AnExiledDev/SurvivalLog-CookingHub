@@ -79,14 +79,14 @@ public class PageScriptTests
 
     private const string StationBook = "[{recipeId:1,name:'Pork Rice',status:0,variantCount:1},{recipeId:2,name:'Stir Fry',status:1,variantCount:1}]";
 
-    private static PageScript Station(FakeGame game, StationExtras? extras = null, bool isCooking = false)
+    private static PageScript Station(FakeGame game, StationExtras? extras = null, bool isCooking = false, string book = StationBook)
     {
         var kitchen = game.Kitchen();
         var page = new PageScript();
 
         page.Catalog(CatalogView.Write(Book));
         page.OpenCooking();
-        page.Run($"stationParts(cookingFrame, {StationBook}, {(isCooking ? "true" : "false")})");
+        page.Run($"stationParts(cookingFrame, {book}, {(isCooking ? "true" : "false")})");
         page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: true, extras));
         page.Poll();
 
@@ -108,6 +108,26 @@ public class PageScriptTests
         page.Click("cookingPage().querySelectorAll('.book-item')[0].querySelector('.st-fill.ch-st')");
 
         Assert.Equal(new PageCommand.Fill(PorkRice), Assert.Single(page.Sent));
+    }
+
+    // The game folds dishes that make the same food into one row; a variant the player cannot cook yet carries a LockText.
+    private static readonly string LockedBook =
+        $"[{{recipeId:{PorkRice},name:'Pork Rice',status:0,variantCount:1}}," +
+        $"{{recipeId:{StirFry},name:'Stir Fry',status:1,variantCount:2,variantsJson:'[{{\"RecipeId\":{StirFry},\"LockText\":\"\"}},{{\"RecipeId\":{FancyStirFry},\"LockText\":\"Unlocked by a recipe book\"}}]'}}," +
+        $"{{recipeId:{Feast},name:'Feast',status:0,variantCount:1}}]";
+
+    private const string LockedChip = "cookingPage().querySelectorAll('.ch-chip').filter(function (c) { return c.textContent === 'Locked'; })[0]";
+
+    [Fact]
+    public void The_Locked_chip_shows_a_dish_the_cook_cannot_make_yet_and_a_folded_row_holding_one()
+    {
+        var page = Station(Stocked(), book: LockedBook);
+
+        page.Click(LockedChip);
+
+        Assert.Equal("none", page.Text(BookRow("Pork Rice") + ".style.display"));
+        Assert.Equal("", page.Text(BookRow("Stir Fry") + ".style.display"));
+        Assert.Equal("", page.Text(BookRow("Feast") + ".style.display"));
     }
 
     private static string SortChip(string word) => $"cookingPage().querySelector('.ch-sorts').querySelectorAll('.ch-chip').filter(function (c) {{ return c.textContent === '{word}'; }})[0]";

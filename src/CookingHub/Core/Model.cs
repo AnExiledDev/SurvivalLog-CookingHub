@@ -61,11 +61,13 @@ public sealed record Cookbook(IReadOnlyDictionary<int, Item> Items, IReadOnlyDic
 }
 
 /// <summary>
-/// One stack of food the player can reach, in their bag or a home storage. Count is what a recipe counts it as: the
-/// stack size, or 1 for an item used up a little at a time. HoursLeft is null for food that keeps; IsSpoiled is the
-/// game's own test, so a spoiled stack costs the pot its fresh bonus.
+/// One stack of food the player can reach, in their bag or a home storage. Count is the stack size. For an item used up
+/// a little at a time (IsByUse) Count is its uses left: the game splits one use off for each that goes in the pot, and
+/// a recipe counts each pot item once, so every use is a unit of its own and takes a pot slot. In the pot such an item
+/// counts as 1. HoursLeft is null for food that keeps; IsSpoiled is the game's own test, so a spoiled stack costs the
+/// pot its fresh bonus.
 /// </summary>
-public sealed record Stack(long InstanceId, int ItemId, int Count, long OwnerId, string Place, double? HoursLeft, bool IsSpoiled);
+public sealed record Stack(long InstanceId, int ItemId, int Count, long OwnerId, string Place, double? HoursLeft, bool IsSpoiled, bool IsByUse = false);
 
 /// <summary>A line of the open cooking panel's dish forecast: the recipe it names, and whether the player knows it.</summary>
 public sealed record Forecast(int RecipeId, bool IsExact, bool IsKnown);

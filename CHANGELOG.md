@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.5
+
+- Fixed: once one pot can cook several dishes, two dishes in the same pot could not share an ingredient that has several uses, like frozen pizza. Each use now goes into the pot on its own, so both dishes can use it.
+- Queuing a dish now reserves only the uses it needs of an ingredient with several uses. Other dishes can still use the rest.
+- Fixed: the search box on the cooking screen now accepts Chinese and other typing that needs an input method.
+- The "Locked" filter now also shows a dish when one of its recipes is still locked.
+
 ## 0.6.4
 
 - Less stutter when you click Load, Repeat last or a suggested seasoning, when the queue fills a stove, and when finished dishes are put away.

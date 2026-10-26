@@ -104,13 +104,24 @@ internal sealed partial class GameCooking : ICookGame
     /// <summary>
     /// With Stacking, each unit goes in by its one-unit move. That move puts the unit in under the stack's own id and
     /// leaves the rest as a new stack in the same place, so the next unit comes off the stack that appeared there.
-    /// Without Stacking, or for a single item, the stack goes in whole by the panel's quick move.
+    /// Without Stacking, or for a single item, the stack goes in whole by the panel's quick move. An item used a little
+    /// at a time goes in a use at a time (MoveUses).
     /// </summary>
     public int MoveUnits(long instanceId, long fromOwnerId, long toOwnerId, int units) => PressCount("move units", () =>
     {
-        var items = LoadedGame()?.World._ItemManager;
+        var game = LoadedGame();
+        var items = game?.World._ItemManager;
         var moved = 0;
         var current = instanceId;
+
+        if (items != null && items.GetItemData(instanceId) is { ItemCount: > 0 } first && RowOf(game!.Value.Config, first.ItemConfigId).IsUsedUp)
+        {
+            moved = MoveUses(items, instanceId, fromOwnerId, toOwnerId, units);
+
+            if (moved > 0) BagRefresh.Ask();
+
+            return moved;
+        }
 
         while (items != null && moved < units && items.GetItemData(current) is { ItemCount: > 0 } item)
         {
@@ -141,6 +152,51 @@ internal sealed partial class GameCooking : ICookGame
 
         return moved;
     });
+
+    /// <summary>
+    /// The panel's quick move (ItemManager.OnCookingQuickMove) splits one use off an item used a little at a time, then
+    /// merges it into a matching item already in the pot. Recipe matching counts each pot item once, so two dishes that
+    /// each want a use of the same food would see only one. This does the same split and move without the merge: each
+    /// use becomes a pot item of its own. The item keeps its id until its last use goes in.
+    /// </summary>
+    private int MoveUses(ItemManager items, long instanceId, long fromOwnerId, long toOwnerId, int units)
+    {
+        var moved = 0;
+
+        while (moved < units && items.GetItemData(instanceId) is { ItemCount: > 0 } item)
+        {
+            var isLast = !ItemManager.WouldSplitForCooking(item);
+            var pieceId = isLast ? instanceId : items.SplitItem(instanceId, 1)?.InstanceId ?? 0;
+
+            if (pieceId == 0)
+            {
+                _log($"the game did not split a use off item {instanceId}");
+
+                break;
+            }
+
+            var before = Holding(items, toOwnerId);
+            var isMoved = items.TryQuickMoveItem(pieceId, fromOwnerId, toOwnerId, false, false) && Holding(items, toOwnerId) != before;
+
+            items.RefreshCookingPendingIfSource(fromOwnerId);
+
+            if (!isMoved)
+            {
+                _log($"the game did not move a use of item {instanceId} from {fromOwnerId} to {toOwnerId}");
+
+                // The use split off stays where it was: put it back on its item, as the game does when a quick move merges.
+                if (!isLast) items.TryMergeIntoOwner(pieceId, fromOwnerId);
+
+                break;
+            }
+
+            moved += Remember(pieceId, fromOwnerId, 1);
+
+            if (isLast) break;
+        }
+
+        return moved;
+    }
 
     public long? OriginOf(long instanceId) => _origins.TryGetValue(instanceId, out var ownerId) ? ownerId : null;
 
@@ -332,7 +388,7 @@ internal sealed partial class GameCooking : ICookGame
 
         for (var i = 0; held != null && i < held.Count; i++)
         {
-            if (held[i] is { ItemCount: > 0 } item) pot.Add(StackOf(item, config, hour, places.Pot));
+            if (held[i] is { ItemCount: > 0 } item) pot.Add(StackOf(item, config, hour, places.Pot, isInPot: true));
         }
 
         return new Stove(
@@ -425,7 +481,7 @@ internal sealed partial class GameCooking : ICookGame
             if (item.OwnerId != roleId && places.IsSetApart(item.OwnerId)) continue;
             if (!RowOf(config, item.ItemConfigId).Burnable) continue;
 
-            stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)) with { Count = item.ItemCount });
+            stock.Add(StackOf(item, config, hour, places.Name(item.OwnerId)) with { Count = item.ItemCount, IsByUse = false });
         }
 
         return stock;
@@ -471,16 +527,19 @@ internal sealed partial class GameCooking : ICookGame
 
     /// <summary>
     /// One stack as the cooking code sees it. Spoiled is the test Furniture.RollCookingQuality uses: a shelf life, and
-    /// its end hour reached. An item used a little at a time counts as one, as recipe matching counts it.
+    /// its end hour reached. In the pot an item used a little at a time counts as one, as recipe matching
+    /// (Reducer_Web_Cooking.PreMatchRecipes) counts each pot item once. Outside it, an item the game splits a use off
+    /// for cooking (ItemManager.WouldSplitForCooking) counts its uses, since each use can go in as a pot item of its own.
     /// </summary>
-    private Core.Stack StackOf(ItemData item, ConfigManager config, int hour, string place)
+    private Core.Stack StackOf(ItemData item, ConfigManager config, int hour, string place, bool isInPot = false)
     {
         var row = RowOf(config, item.ItemConfigId);
         var hasLife = row.Life > 0;
         var hoursLeft = hasLife ? item.StartTime + item.TimeLeft - hour : (double?)null;
-        var count = row.IsUsedUp ? 1 : item.ItemCount;
+        var isByUse = !isInPot && row.IsUsedUp && ItemManager.WouldSplitForCooking(item);
+        var count = isByUse ? item.UseTimes : row.IsUsedUp ? 1 : item.ItemCount;
 
-        return new Core.Stack(item.InstanceId, item.ItemConfigId, count, item.OwnerId, place, hoursLeft, hasLife && hoursLeft <= 0);
+        return new Core.Stack(item.InstanceId, item.ItemConfigId, count, item.OwnerId, place, hoursLeft, hasLife && hoursLeft <= 0, isByUse);
     }
 
     /// <summary>What a read needs of an item's table row, looked up once per item and kept until the tables change.</summary>

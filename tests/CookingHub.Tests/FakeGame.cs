@@ -158,6 +158,9 @@ internal sealed class FakeGame : ICookGame
     public static Stack S(long instanceId, int itemId, int count = 1, double? hours = 48, bool isSpoiled = false, long owner = Bag) =>
         new(instanceId, itemId, count, owner, owner == Bag ? "Bag" : "Chest", hours, isSpoiled);
 
+    /// <summary>One item used a little at a time, with that many uses left: each use goes in the pot as an item of its own.</summary>
+    public static Stack Uses(long instanceId, int itemId, int uses, long owner = Bag) => S(instanceId, itemId, uses, owner: owner) with { IsByUse = true };
+
     public Kitchen Kitchen() =>
         new(Book, Level, Cooked, CraftUnlocked, Stock.ToList(), IsStoveOpen ? OpenStove() : null, MultiPotLevel);
 
@@ -197,6 +200,7 @@ internal sealed class FakeGame : ICookGame
         var stack = Stock.FirstOrDefault(s => s.InstanceId == instanceId && s.OwnerId == fromOwnerId);
 
         if (stack == null || Stuck.Contains(instanceId)) return 0;
+        if (stack.IsByUse && toOwnerId == Workbench) return MoveUses(stack, fromOwnerId, units);
         if (!SlotsByUnit || toOwnerId != Workbench) return MoveStack(instanceId, fromOwnerId, toOwnerId) ? stack.Count : 0;
 
         var moved = 0;
@@ -212,6 +216,30 @@ internal sealed class FakeGame : ICookGame
 
             stack = stack with { InstanceId = _nextId++, Count = stack.Count - 1 };
             Stock.Add(stack);
+        }
+
+        return moved;
+    }
+
+    /// <summary>
+    /// The game's split for cooking: each use leaves as a new one-use item, and the item keeps its id until its last use
+    /// goes in. Each lands in the pot as an item of its own, never merged into one already there.
+    /// </summary>
+    private int MoveUses(Stack stack, long fromOwnerId, int units)
+    {
+        var moved = 0;
+
+        while (moved < units && stack.Count > 0)
+        {
+            var pieceId = stack.Count == 1 ? stack.InstanceId : _nextId++;
+
+            Stock.Remove(stack);
+            Pot.Add(stack with { InstanceId = pieceId, Count = 1, OwnerId = Workbench, Place = "Pot", IsByUse = false });
+            Origins[pieceId] = fromOwnerId;
+            moved++;
+            stack = stack with { Count = stack.Count - 1 };
+
+            if (stack.Count > 0) Stock.Add(stack);
         }
 
         return moved;

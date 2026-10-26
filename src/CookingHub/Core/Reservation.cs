@@ -8,7 +8,8 @@ namespace CookingHub.Core;
 /// from what earlier dishes left, the way a fill would take it. A dish the food left no longer covers sets nothing aside,
 /// so it never holds food back from the dishes after it. Left is the kitchen with the set-aside food taken out of
 /// its stock: Queue, Load and Repeat last plan from it, so a queued dish never runs short because of another press.
-/// A fill moves a whole stack unless units go in one at a time (Stove.SlotsByUnit), so a whole stack is set aside then.
+/// A fill moves a whole stack unless units go in one at a time (Stove.SlotsByUnit, or an item used a little at a time),
+/// so a whole stack is set aside then.
 /// </summary>
 public sealed class Reservation
 {
@@ -61,7 +62,7 @@ public sealed class Reservation
 
     private static Kitchen Without(Kitchen kitchen, IReadOnlyList<Take> takes, bool isByUnit)
     {
-        var units = takes.GroupBy(take => take.InstanceId).ToDictionary(group => group.Key, group => group.Sum(take => isByUnit ? take.Units : take.Count));
+        var units = takes.GroupBy(take => take.InstanceId).ToDictionary(group => group.Key, group => group.Sum(take => isByUnit || take.IsByUse ? take.Units : take.Count));
         var stock = kitchen.Stock
             .Select(stack => units.TryGetValue(stack.InstanceId, out var used) ? stack with { Count = stack.Count - used } : stack)
             .Where(stack => stack.Count > 0)
