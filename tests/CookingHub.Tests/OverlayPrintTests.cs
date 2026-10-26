@@ -132,6 +132,14 @@ public class OverlayPrintTests
     }
 
     [Fact]
+    public void Turning_unlearned_recipes_on_changes_the_print_so_the_book_is_sent_again()
+    {
+        var kitchen = Stocked().Kitchen();
+
+        Assert.NotEqual(Print(kitchen), OverlayPrint.Of(kitchen, true, isSpoilingFirst: true, CookQueue.Empty, null, 0, isShowingUnlearned: true));
+    }
+
+    [Fact]
     public void Fuel_brought_from_storage_changes_the_print()
     {
         var game = Stocked();

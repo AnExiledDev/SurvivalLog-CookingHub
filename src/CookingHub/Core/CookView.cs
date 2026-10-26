@@ -25,16 +25,17 @@ public static class CookView
     /// <summary>
     /// What page.js draws on the game's own cooking screen: the stove line, each recipe book row's food and odds, the
     /// pantry and Repeat last, and the odds of each forecast line, keyed by recipe id so the page can check it
-    /// is drawing on the lines C# read, with the nudges. Recipe names are never sent, so a recipe the player has not
-    /// learned stays hidden; the book lists only recipes the game itself shows.
+    /// is drawing on the lines C# read, with the nudges. The book lists only recipes the game itself shows, unless
+    /// isShowingUnlearned asks for the rest too, each marked unlearned with the cooking level the tables show it at.
     /// </summary>
-    public static string Overlay(Kitchen kitchen, Stove stove, bool isShowingOdds, StationExtras? extras = null) => Json.Object(json =>
+    public static string Overlay(Kitchen kitchen, Stove stove, bool isShowingOdds, StationExtras? extras = null, bool isShowingUnlearned = false) => Json.Object(json =>
     {
         var advice = Advice.For(kitchen, stove);
         var station = extras ?? StationExtras.None;
 
         json.WriteBoolean("show", true);
         json.WriteBoolean("odds", isShowingOdds);
+        json.WriteBoolean("unlearned", isShowingUnlearned);
         json.WriteBoolean("cooking", stove.IsCooking);
         json.WriteBoolean("potEmpty", stove.PotCount == 0);
         json.WriteNumber("level", kitchen.Level);
@@ -42,7 +43,7 @@ public static class CookView
         WriteStation(json, kitchen, stove);
         json.WriteStartArray("book");
 
-        foreach (var dish in Finder.ForStove(kitchen, stove)) WriteBookRow(json, kitchen, stove, dish, station.Reserved);
+        foreach (var dish in Finder.ForStove(kitchen, stove, isShowingUnlearned)) WriteBookRow(json, kitchen, stove, dish, station.Reserved);
 
         json.WriteEndArray();
         json.WriteStartArray("pantry");
@@ -144,6 +145,12 @@ public static class CookView
         json.WriteString("state", StateName(dish.State));
         json.WriteBoolean("isNew", dish.IsNew);
         json.WriteBoolean("setAside", dish.State == Readiness.Ready && reserved != null && !reserved.Covers(dish.Recipe));
+
+        if (dish.IsUnlearned)
+        {
+            json.WriteBoolean("unlearned", true);
+            json.WriteNumber("showLevel", dish.Recipe.ShowLevel);
+        }
 
         if (odds != null) WriteChances(json, odds);
         else json.WriteNull("chances");

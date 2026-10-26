@@ -13,7 +13,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.6.5";
+    private const string Version = "0.6.6";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     public override void Load()
@@ -29,6 +29,9 @@ public sealed class Plugin : BasePlugin
         var isPuttingDishesAway = Config.Bind("General", "PutDishesAway", false,
             "When true, a finished dish is moved out of the stove into the home storage whose tags want it, the way Storage Hub puts items away. A dish no storage is tagged for, or that a storage already holding it has no room for, stays in the stove.\n" +
             "设为 true 时，做好的菜会从灶具移到标签需要它的家中储物里，方式与 Storage Hub 收纳物品相同。没有储物标签收它，或已有这道菜的储物放不下时，菜会留在灶具里。");
+        var isShowingUnlearned = Config.Bind("General", "ShowUnlearnedRecipes", false,
+            "When true, the cooking screen gets a Not learned tab listing the recipes this stove can cook that the recipe book does not show yet, with the food you have for each. When false, only the recipes the game shows are listed.\n" +
+            "设为 true 时，烹饪界面会多一个「未学会」标签页，列出这个灶具能做、但菜谱里还没显示的菜，以及你有的食材。设为 false 时，只列出游戏显示的菜谱。");
         var isLoggingToFile = Config.Bind("Diagnostics", "LogToFile", false, new BepInEx.Configuration.ConfigDescription(
             "When true, what Cooking Hub does is also written to BepInEx\\cooking-hub.log, which is kept between game starts. Turn it on when reporting a problem.\n" +
             "设为 true 时，Cooking Hub 的操作也会写入 BepInEx\\cooking-hub.log，该文件在重启游戏后保留。报告问题时再打开。", null, "ModManager.Advanced"));
@@ -51,9 +54,9 @@ public sealed class Plugin : BasePlugin
 
         OptionalLive.Watch(() =>
         {
-            session.UseSettings(isSpoilingFirst.Value, isShowingOdds.Value, isPuttingDishesAway.Value);
-            log.Write($"spoiling first {isSpoilingFirst.Value}, odds {isShowingOdds.Value}, put dishes away {isPuttingDishesAway.Value}");
-        }, isSpoilingFirst, isShowingOdds, isPuttingDishesAway);
+            session.UseSettings(isSpoilingFirst.Value, isShowingOdds.Value, isPuttingDishesAway.Value, isShowingUnlearned.Value);
+            log.Write($"spoiling first {isSpoilingFirst.Value}, odds {isShowingOdds.Value}, put dishes away {isPuttingDishesAway.Value}, unlearned {isShowingUnlearned.Value}");
+        }, isSpoilingFirst, isShowingOdds, isPuttingDishesAway, isShowingUnlearned);
 
         CookTicker.Session = session;
         CookTicker.Log = log.Write;

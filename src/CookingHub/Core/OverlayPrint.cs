@@ -12,7 +12,7 @@ namespace CookingHub.Core;
 /// </summary>
 public static class OverlayPrint
 {
-    public static ulong Of(Kitchen kitchen, bool isShowingOdds, bool isSpoilingFirst, CookQueue queue, int? last, int startToken)
+    public static ulong Of(Kitchen kitchen, bool isShowingOdds, bool isSpoilingFirst, CookQueue queue, int? last, int startToken, bool isShowingUnlearned = false)
     {
         var print = new Print();
 
@@ -24,6 +24,7 @@ public static class OverlayPrint
         print.AddStacks(kitchen.Stock);
         print.Add(isShowingOdds ? 1 : 0);
         print.Add(isSpoilingFirst ? 1 : 0);
+        print.Add(isShowingUnlearned ? 1 : 0);
         print.Add(last ?? -1);
         print.Add(startToken);
         print.AddQueue(queue);

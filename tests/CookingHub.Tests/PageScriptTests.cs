@@ -79,7 +79,7 @@ public class PageScriptTests
 
     private const string StationBook = "[{recipeId:1,name:'Pork Rice',status:0,variantCount:1},{recipeId:2,name:'Stir Fry',status:1,variantCount:1}]";
 
-    private static PageScript Station(FakeGame game, StationExtras? extras = null, bool isCooking = false, string book = StationBook)
+    private static PageScript Station(FakeGame game, StationExtras? extras = null, bool isCooking = false, string book = StationBook, bool isShowingUnlearned = false)
     {
         var kitchen = game.Kitchen();
         var page = new PageScript();
@@ -87,7 +87,7 @@ public class PageScriptTests
         page.Catalog(CatalogView.Write(Book));
         page.OpenCooking();
         page.Run($"stationParts(cookingFrame, {book}, {(isCooking ? "true" : "false")})");
-        page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: true, extras));
+        page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: true, extras, isShowingUnlearned));
         page.Poll();
 
         return page;
@@ -363,6 +363,50 @@ public class PageScriptTests
 
         Assert.Equal("Recipe Book,Cook now,Queued,Pantry", page.Text("cookingPage().querySelectorAll('.ch-tab').map(function (t) { return t.getAttribute('data-label').split('|')[0]; }).join(',')"));
         Assert.Equal("2", page.Text(StationTab("Queued") + ".getAttribute('data-label').split('|')[1]"));
+    }
+
+    private const string TabNames = "cookingPage().querySelectorAll('.ch-tab').map(function (t) { return t.getAttribute('data-label').split('|')[0]; }).join(',')";
+
+    // Secret shows from cooking level 9; the cook is level 2, so the game's book does not list it yet.
+    [Fact]
+    public void With_unlearned_recipes_on_a_Not_learned_tab_lists_them_with_their_level_and_Load()
+    {
+        var page = Station(Stocked(), isShowingUnlearned: true);
+
+        Assert.Equal("Recipe Book,Cook now,Not learned,Queued,Pantry", page.Text(TabNames));
+        Assert.Equal("1", page.Text(StationTab("Not learned") + ".getAttribute('data-label').split('|')[1]"));
+
+        page.Click(StationTab("Not learned"));
+
+        Assert.Contains("cooking level 9", page.Text(ViewRow("Secret") + ".textContent"));
+        Assert.False(page.Is(ViewRow("Pork Rice")), "a recipe the book lists stays off the Not learned tab");
+
+        page.Click(ViewRow("Secret") + ".querySelector('.st-fill')");
+
+        Assert.Equal(new PageCommand.Fill(Secret), Assert.Single(page.Sent));
+    }
+
+    [Fact]
+    public void With_unlearned_recipes_on_a_cook_now_card_says_its_recipe_is_not_learned()
+    {
+        var page = Station(Stocked(), isShowingUnlearned: true);
+
+        page.Click(StationTab("Cook now"));
+
+        Assert.Contains("not learned", page.Text(ViewRow("Secret") + ".textContent"));
+        Assert.DoesNotContain("not learned", page.Text(ViewRow("Pork Rice") + ".textContent"));
+    }
+
+    [Fact]
+    public void With_unlearned_recipes_off_the_cooking_screen_never_names_one()
+    {
+        var page = Station(Stocked());
+
+        Assert.Equal("Recipe Book,Cook now,Queued,Pantry", page.Text(TabNames));
+
+        page.Click(StationTab("Cook now"));
+
+        Assert.False(page.Is(ViewRow("Secret")));
     }
 
     [Fact]

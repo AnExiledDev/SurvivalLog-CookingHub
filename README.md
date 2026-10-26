@@ -12,6 +12,7 @@ Open any stove, juicer, microwave, oven or coffee machine and its cooking screen
 - **Repeat last**: refills an empty stove with the dish it last started and starts it again.
 - **Top up from storage**: fills the free fuel slots with the fuel the stove already burns, from your bag and storages. Put the first fuel in by hand so the mod knows which kind.
 - **Put dishes away** (setting `PutDishesAway`, off by default): a finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away. A dish no tagged storage has room for stays in the stove. With Exiled's Toolkit, each dish put away shows a toast.
+- **Not learned tab** (setting `ShowUnlearnedRecipes`, off by default): lists the recipes this stove can cook that your recipe book does not show yet, with the food you have for each, what is missing, and the cooking level a recipe shows up at. Load and Queue work on the ones your food covers. Cooking one teaches it. Cook now marks these dishes "not learned". With the setting off, the mod lists only the recipes the game shows.
 - **Odds on the cooking screen**: under each dish the cooking screen forecasts, the chance of a Failed, Average, Good and Perfect dish, and why: your cooking level's roll, fresh or spoiled food, seasonings, an exact recipe, the stove. It also shows the worst result a roll can give.
 - **What would help**: buttons under the forecast to add a seasoning you have, or to swap a spoiled ingredient in the pot for a fresh one, each with how much it adds to the Perfect chance.
 
@@ -47,7 +48,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 
 Built against BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.6.5 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
+Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.6.6 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
 
 ## Feedback and bug reports
 

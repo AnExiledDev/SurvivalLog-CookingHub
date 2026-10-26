@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.6
+
+- Fixed: Cook now could show recipes you had not learned yet. It now lists only the recipes your recipe book shows.
+- New setting ShowUnlearnedRecipes, off by default. When on, the cooking screen gets a Not learned tab with the recipes this stove can cook that your recipe book does not show yet, with the food you have for each. You can load and queue them, and cooking one teaches it.
+
 ## 0.6.5
 
 - Fixed: once one pot can cook several dishes, two dishes in the same pot could not share an ingredient that has several uses, like frozen pizza. Each use now goes into the pot on its own, so both dishes can use it.

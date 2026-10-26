@@ -15,6 +15,7 @@ public sealed record Item(int Id, string Name, string? Icon, int Type, int Life,
 /// <summary>
 /// One row of Config_CookingRecipe. An exact recipe names its items (Specific); a tag recipe names food types (Tags).
 /// Outputs are the dish made at each tier, Fail to Perfect. QualityMap holds the lowest score of each tier, same order.
+/// Group is the recipe the game's book shows it under with the recipes that make the same food (0 for its own row).
 /// </summary>
 public sealed record Recipe(
     int Id,
@@ -26,9 +27,13 @@ public sealed record Recipe(
     int CraftLevel,
     int ShowLevel,
     int CookSeconds,
-    IReadOnlyList<int> Outputs)
+    IReadOnlyList<int> Outputs,
+    int Group = 0)
 {
     public const int DarkFood = 100;
+
+    /// <summary>The recipe this one is listed under, itself when it has a book row of its own.</summary>
+    public int GroupId => Group == 0 ? Id : Group;
 
     public bool IsExact => Specific.Count > 0;
 

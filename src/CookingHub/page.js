@@ -278,7 +278,8 @@
   // Best first, the order the odds are drawn in, with the colours the game gives each quality.
   var TIER_ORDER = [3, 2, 1, 0];
   var TIER_COLOR = ['#8a8a8a', 'rgba(255,255,255,.6)', 'var(--q-good)', 'var(--q-perfect)'];
-  var STATION_TABS = [['book', 'tabBook'], ['now', 'tabNow'], ['queue', 'tabQueue'], ['pantry', 'tabPantry']];
+  // Not learned shows only while the plugin sends the recipes the game's book does not list yet.
+  var STATION_TABS = [['book', 'tabBook'], ['now', 'tabNow'], ['unlearned', 'tabUnlearned'], ['queue', 'tabQueue'], ['pantry', 'tabPantry']];
   var STATION_FILTERS = [['all', 'fAll'], ['load', 'fCanLoad'], ['new', 'fNew'], ['locked', 'fLocked']];
   // Sort keys: an index into a dish's gives (satiety, morale, stamina, health, vitality), or the Perfect chance.
   var STATION_SORTS = [['none', 'sNone'], [0, 'sSatiety'], [2, 'sStamina'], [1, 'sMorale'], [3, 'sHealth'], [4, 'sVitality'], ['quality', 'sQuality']];
@@ -309,6 +310,8 @@
 
     var section = doc.getElementById('recipeSection');
     var list = doc.getElementById('recipeList');
+
+    if (station.tab === 'unlearned' && !overlay.unlearned) station.tab = 'book';
 
     if (section && list) {
       hideBookTitle(doc);
@@ -381,32 +384,41 @@
 
   // Built once per screen so the search box keeps its cursor; only the labels and the lit choice change after that.
   function drawBar(doc, section, list) {
+    var tabs = stationTabs();
+    var tabIds = tabs.map(function (t) { return t[0]; }).join(',');
     var bar = firstChildWithClass(section, 'ch-bar');
 
+    // A new set of tabs builds the bar again; that only happens when the setting changes.
+    if (bar && bar.getAttribute('data-tabs') !== tabIds) {
+      bar.remove();
+      bar = null;
+    }
+
     if (!bar) {
-      bar = buildBar(doc);
+      bar = buildBar(doc, tabs);
+      bar.setAttribute('data-tabs', tabIds);
       section.insertBefore(bar, list);
     }
 
     var counts = tabCounts();
 
     kids(bar.children[0]).forEach(function (tab, i) {
-      var id = STATION_TABS[i][0];
-      var label = say(STATION_TABS[i][1]) + '|' + counts[id];
+      var id = tabs[i][0];
+      var label = say(tabs[i][1]) + '|' + counts[id];
 
       setClass(tab, 'ch-tab interactive-btn' + (station.tab === id ? ' ch-on' : ''));
 
       if (tab.getAttribute('data-label') === label) return;
 
       tab.setAttribute('data-label', label);
-      tab.textContent = say(STATION_TABS[i][1]);
+      tab.textContent = say(tabs[i][1]);
 
       if (counts[id]) tab.appendChild(make(doc, 'span', 'ch-n' + (id === 'pantry' ? ' ch-red' : ''), String(counts[id])));
     });
 
     var tools = bar.children[1];
 
-    var toolsShown = station.tab === 'book' || station.tab === 'now' ? '' : 'none';
+    var toolsShown = station.tab === 'book' || station.tab === 'now' || station.tab === 'unlearned' ? '' : 'none';
 
     setStyle(tools, 'display', toolsShown);
     kids(tools).slice(1, 1 + STATION_FILTERS.length).forEach(function (chip, i) {
@@ -430,13 +442,17 @@
     if (node.style[name] !== value) node.style[name] = value;
   }
 
-  function buildBar(doc) {
+  function stationTabs() {
+    return STATION_TABS.filter(function (t) { return t[0] !== 'unlearned' || !!overlay.unlearned; });
+  }
+
+  function buildBar(doc, shownTabs) {
     var bar = make(doc, 'div', 'ch-bar ' + OURS);
     var tabs = make(doc, 'div', 'ch-tabs');
     var tools = make(doc, 'div', 'ch-tools');
     var search = make(doc, 'input', 'ch-search');
 
-    STATION_TABS.forEach(function (t) {
+    shownTabs.forEach(function (t) {
       tabs.appendChild(pageButton(doc, 'div', 'ch-tab', say(t[1]), function () { choose(function () { station.tab = t[0]; }); }));
     });
 
@@ -477,6 +493,7 @@
       counts: {
         book: 0,
         now: (overlay.book || []).filter(isFree).length,
+        unlearned: (overlay.book || []).filter(function (dish) { return dish.unlearned && isFree(dish); }).length,
         queue: (overlay.queue || []).length,
         pantry: (overlay.pantry || []).filter(function (s) { return s.spoiled > 0 || (s.hours != null && s.hours <= SPOILING_HOURS); }).length
       }
@@ -718,6 +735,7 @@
     fresh.setAttribute('data-key', key);
 
     if (station.tab === 'now') fillNow(doc, fresh, win);
+    else if (station.tab === 'unlearned') fillUnlearned(doc, fresh, win);
     else if (station.tab === 'queue') fillQueue(doc, fresh, win);
     else fillPantry(doc, fresh, win);
 
@@ -759,11 +777,46 @@
       tagForInfoPack(row, recipeOf(dish.id).dish);
       recipeTip(doc, win, row, dish.id);
 
+      if (dish.unlearned) row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('unlearnedChip')));
       if (dish.hours != null) row.appendChild(spoilChip(doc, dish.hours));
       if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
 
       row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
       addQueueButton(doc, row, dish.id);
+      view.appendChild(row);
+    });
+  }
+
+  // The recipes this stove cooks that the game's book does not list yet, the ones the player's food covers first.
+  function fillUnlearned(doc, view, win) {
+    var shown = (overlay.book || []).filter(function (dish) {
+      return dish.unlearned && matchesFilter({}, dish) && matchesSearch(recipeOf(dish.id).name, dish);
+    }).sort(function (a, b) {
+      return (isFree(b) ? 1 : 0) - (isFree(a) ? 1 : 0) || (station.sort !== 'none' ? sortValue(b) - sortValue(a) : 0) || a.id - b.id;
+    });
+
+    view.appendChild(make(doc, 'div', 'ch-sub', say('unlearnedNote')));
+
+    if (!shown.length) view.appendChild(make(doc, 'div', 'ch-sub', say('unlearnedNone')));
+
+    shown.forEach(function (dish) {
+      var recipe = recipeOf(dish.id);
+      var row = viewRow(doc, recipe, recipe.name, whereLine(doc, dish), isFree(dish) ? 'fillable' : 'insuff');
+
+      if (dish.chances) row.children[1].appendChild(miniBar(doc, dish.chances));
+
+      addGives(doc, row.children[1], dish.gives);
+      tagForInfoPack(row, recipe.dish);
+      recipeTip(doc, win, row, dish.id);
+
+      if (dish.showLevel > 0) row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('showsAt', dish.showLevel)));
+      if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
+
+      if (isFree(dish)) {
+        row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+        addQueueButton(doc, row, dish.id);
+      }
+
       view.appendChild(row);
     });
   }

@@ -28,6 +28,7 @@ internal sealed class CookSession
 
     private bool _isSpoilingFirst = true;
     private bool _isShowingOdds = true;
+    private bool _isShowingUnlearned;
     private bool _isPuttingDishesAway;
 
     private readonly OverlayDelta _delta = new();
@@ -63,10 +64,11 @@ internal sealed class CookSession
     private static bool IsChinese => GameLanguage.IsChinese();
 
     /// <summary>Called on the main thread at start and after each settings change; the page hears them at the next refresh.</summary>
-    public void UseSettings(bool isSpoilingFirst, bool isShowingOdds, bool isPuttingDishesAway)
+    public void UseSettings(bool isSpoilingFirst, bool isShowingOdds, bool isPuttingDishesAway, bool isShowingUnlearned)
     {
         _isSpoilingFirst = isSpoilingFirst;
         _isShowingOdds = isShowingOdds;
+        _isShowingUnlearned = isShowingUnlearned;
         _isPuttingDishesAway = isPuttingDishesAway;
         ForgetSent();
     }
@@ -347,13 +349,13 @@ internal sealed class CookSession
             var start = StartToken(stove);
             var last = _last.For(stove.FurnitureId);
 
-            print = OverlayPrint.Of(kitchen, _isShowingOdds, _isSpoilingFirst, _queue, last, start);
+            print = OverlayPrint.Of(kitchen, _isShowingOdds, _isSpoilingFirst, _queue, last, start, _isShowingUnlearned);
 
             if (print == _shownPrint) return;
 
             var reserved = _queue.IsEmpty ? null : Reservation.Of(kitchen, _queue, _isSpoilingFirst, stove.SlotsByUnit);
 
-            overlay = CookView.Overlay(kitchen, stove, _isShowingOdds, new StationExtras(last, start, _queue.For(stove.FurnitureId), reserved));
+            overlay = CookView.Overlay(kitchen, stove, _isShowingOdds, new StationExtras(last, start, _queue.For(stove.FurnitureId), reserved), _isShowingUnlearned);
         }
         else
         {

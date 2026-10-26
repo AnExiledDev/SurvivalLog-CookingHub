@@ -152,8 +152,9 @@ internal sealed class FakeGame : ICookGame
     /// <summary>Stacks the game refuses to move.</summary>
     public HashSet<long> Stuck { get; } = new();
 
-    public static Recipe R(int id, string name, int[]? specific = null, int[]? tags = null, int tier = 2, int craftLevel = 0, int showLevel = 0, int[]? outputs = null) =>
-        new(id, name, specific ?? Array.Empty<int>(), tags ?? Array.Empty<int>(), tier, Map, craftLevel, showLevel, 60, outputs ?? new[] { Bowl, Bowl, Bowl, Bowl });
+    /// <summary>A recipe the game lists from cooking level 1 unless showLevel says otherwise; 0 lists it only once learned.</summary>
+    public static Recipe R(int id, string name, int[]? specific = null, int[]? tags = null, int tier = 2, int craftLevel = 0, int showLevel = 1, int[]? outputs = null, int group = 0) =>
+        new(id, name, specific ?? Array.Empty<int>(), tags ?? Array.Empty<int>(), tier, Map, craftLevel, showLevel, 60, outputs ?? new[] { Bowl, Bowl, Bowl, Bowl }, group);
 
     public static Stack S(long instanceId, int itemId, int count = 1, double? hours = 48, bool isSpoiled = false, long owner = Bag) =>
         new(instanceId, itemId, count, owner, owner == Bag ? "Bag" : "Chest", hours, isSpoiled);

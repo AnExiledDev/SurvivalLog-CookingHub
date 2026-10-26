@@ -636,10 +636,28 @@ internal sealed partial class GameCooking : ICookGame
             var name = Translate(config, row.RecipeName) ?? NonEmpty(row.RecipeName_Local) ?? $"Recipe {row.ID}";
             var outputs = new[] { row.FailItemID, row.NormalItemID, row.GoodItemID, row.PerfectItemID };
 
-            recipes[row.ID] = new Recipe(row.ID, name, Ints(row.SpecificItems), Ints(row.TagCombo), row.Tier, Ints(row.QualityMap), row.craft_level, row.show_level, row.CookTime, outputs);
+            recipes[row.ID] = new Recipe(row.ID, name, Ints(row.SpecificItems), Ints(row.TagCombo), row.Tier, Ints(row.QualityMap), row.craft_level, row.show_level, row.CookTime, outputs, GroupOf(row.ID));
         }
 
         return recipes;
+    }
+
+    /// <summary>
+    /// The recipe the game's book lists this one under (DishCodexGrouping.Representative), or 0 for its own row. A failed
+    /// read gives every recipe its own row, so a grouped recipe lists only once learned itself.
+    /// </summary>
+    private static int GroupOf(int recipeId)
+    {
+        try
+        {
+            var group = GameCore.HotUpdate.Codex.DishCodexGrouping.Representative(recipeId);
+
+            return group == recipeId ? 0 : group;
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
     }
 
     private List<FoodType> ReadTypes(ConfigManager config)
