@@ -2,8 +2,10 @@
 
 ## 0.6.1
 
-- Queued dishes keep their food. Queue shows only on dishes your food covers after every dish already queued, on any stove, and that food is set aside: Load, Repeat last and other stoves' queues leave it alone, so a queued dish no longer runs short because of another dish. A dish only set-aside food covers says "set aside for the queue" instead of Load and Queue, and leaves Cook now.
-- The Queued tab marks a dish "short of food" when its food spoiled or was used by hand; it waits while the next one cooks.
+- Fixed: a queued dish could run out of ingredients if you cooked something else first.
+- Queuing a dish now reserves its ingredients. Load, Repeat last and other stoves won't touch them.
+- The Queue button only shows up if you have enough ingredients left after everything already queued.
+- If a queued dish's ingredients spoil or you use them yourself, it's marked "short of food" and skipped until you have enough.
 
 ## 0.6.0
 
