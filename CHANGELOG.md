@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.8
+
+- The pop-up messages over the game can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once.
+- The tabs, buttons and odds on the game's cooking screen keep the game's size, like the rest of that screen.
+- Made for Survival Log 1.1.19611.
+
 ## 0.6.7
 
 - Less stutter the first time you open a cooking screen after loading a save. The recipes are now read a little at a time in the background.

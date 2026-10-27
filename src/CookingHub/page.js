@@ -85,6 +85,21 @@
     return node;
   }
 
+  // Hands a panel to Exiled's Toolkit to be drawn at the player's UI size. Before the Toolkit's script has loaded it
+  // waits in a list the Toolkit reads; without the Toolkit nothing happens.
+  function uiSize(node, options) {
+    var toolkit = window.ExiledUi;
+
+    if (toolkit) {
+      toolkit.size(node, options);
+      return;
+    }
+
+    var waiting = window.__exiledUiWait = window.__exiledUiWait || [];
+    waiting.push([node, options]);
+    if (waiting.length > 32) waiting.shift();
+  }
+
   var TOAST_CSS = '#ch-toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:2147483001;pointer-events:none;display:none;max-width:640px;text-align:center;padding:10px 18px;border-radius:4px;border:1px solid rgba(255,200,58,.6);background:linear-gradient(180deg,rgba(64,52,40,.97),rgba(44,36,28,.97));color:#f0e8d8;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.6)}';
 
   // The toast is made on first use, and again if the root page lost it; the style outlives a lost toast, so it is added once.
@@ -102,6 +117,9 @@
     toast = make(document, 'div');
     toast.id = 'ch-toast';
     document.body.appendChild(toast);
+    // Drawn at the player's UI size (Exiled's Toolkit); a short notice is never shrunk. The additions to the game's
+    // cooking screen keep the game's size, like the rest of that screen.
+    uiSize(toast, { fit: false });
 
     return toast;
   }

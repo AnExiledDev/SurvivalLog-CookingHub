@@ -484,6 +484,52 @@ public class PageScriptTests
         Assert.Equal("none", page.Text("document.getElementById('ch-toast').style.display"));
     }
 
+    // ===== UI size (Exiled's Toolkit) =====
+
+    // Stands in for Exiled's Toolkit's window.ExiledUi and keeps what each call handed it.
+    private const string FakeUi = "var handed = []; window.ExiledUi = { size: function (el, options) { handed.push({ el: el, options: options }); } }";
+
+    [Fact]
+    public void The_toast_is_handed_to_the_toolkit_once_and_never_shrunk()
+    {
+        var page = new PageScript();
+        page.Run(FakeUi);
+
+        page.Status("The pot is filled for Stir Fry.");
+        page.Status("The stove is topped up.");
+
+        // The second notice reuses the toast already made, so it is not handed twice.
+        Assert.Equal("1", page.Text("handed.length"));
+        Assert.Equal("ch-toast", page.Text("handed[0].el.id"));
+        Assert.True(page.Is("handed[0].options.fit === false"));
+    }
+
+    [Fact]
+    public void A_toast_the_page_lost_is_handed_again_when_it_is_made_anew()
+    {
+        var page = new PageScript();
+        page.Run(FakeUi);
+        page.Status("The pot is filled for Stir Fry.");
+
+        page.Run("document.getElementById('ch-toast').remove()");
+        page.Status("The stove is topped up.");
+
+        Assert.Equal("2", page.Text("handed.length"));
+        Assert.True(page.Is("handed[1].el === document.getElementById('ch-toast')"));
+    }
+
+    [Fact]
+    public void Before_the_toolkit_has_loaded_the_toast_waits_in_the_list_it_reads()
+    {
+        var page = new PageScript();
+
+        page.Status("The pot is filled for Stir Fry.");
+
+        Assert.Equal("1", page.Text("window.__exiledUiWait.length"));
+        Assert.Equal("ch-toast", page.Text("window.__exiledUiWait[0][0].id"));
+        Assert.True(page.Is("window.__exiledUiWait[0][1].fit === false"));
+    }
+
     [Fact]
     public void The_hud_gets_no_cooking_hub_button_and_the_script_offers_no_window()
     {
