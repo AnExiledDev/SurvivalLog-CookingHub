@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.9
+
+- Less stutter on the cooking screen when you have a lot of food in your bag and storages. Loading a pot or moving food now redraws the recipe book several times faster.
+- Less stutter the first time you open a cooking screen after starting the game.
+- Made for Survival Log 1.1.19611.
+
 ## 0.6.8
 
 - The pop-up messages over the game can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once.

@@ -116,6 +116,24 @@ public class OverlayDeltaTests
         Assert.Empty(Book(delta.Next(StirFryElsewhere(overlay))!.Json).Kept);
     }
 
+    // Chinese text takes more than one byte a letter, so a cut made in the wrong unit lands inside a row after it.
+    [Fact]
+    public void Rows_after_chinese_text_are_cut_out_cleanly_and_the_rest_goes_as_it_was()
+    {
+        const string Cellar = "地窖";
+
+        static string Overlay(string third) =>
+            "{\"stove\":{\"name\":\"" + Cellar + "\"},\"book\":[{\"id\":1,\"places\":[\"" + Cellar + "\"]},{\"id\":2,\"places\":[]},{\"id\":3,\"places\":[\"" + third + "\"]}],\"pantry\":[\"" + Cellar + "\"]}";
+
+        var delta = new OverlayDelta();
+
+        delta.Sent(delta.Next(Overlay("Bag"))!);
+
+        var patch = delta.Next(Overlay(Cellar))!;
+
+        Assert.Equal("{\"stove\":{\"name\":\"" + Cellar + "\"},\"book\":[1,2,{\"id\":3,\"places\":[\"" + Cellar + "\"]}],\"pantry\":[\"" + Cellar + "\"]}", patch.Json);
+    }
+
     [Fact]
     public void After_the_page_loads_afresh_the_same_overlay_goes_again_and_whole()
     {

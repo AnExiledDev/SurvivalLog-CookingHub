@@ -48,7 +48,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 
 Built against BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.6.7 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
+Check `BepInEx\LogOutput.log` for `===== Cooking Hub 0.6.9 started`, followed by `listening for panel messages`. A line starting with `could not` means part of the mod does not work on this game version.
 
 ## Feedback and bug reports
 

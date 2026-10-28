@@ -32,6 +32,7 @@ public static class CookView
     {
         var advice = Advice.For(kitchen, stove);
         var station = extras ?? StationExtras.None;
+        var fresh = new FreshFood(kitchen.Book, kitchen.Stock);
 
         json.WriteBoolean("show", true);
         json.WriteBoolean("odds", isShowingOdds);
@@ -43,7 +44,7 @@ public static class CookView
         WriteStation(json, kitchen, stove);
         json.WriteStartArray("book");
 
-        foreach (var dish in Finder.ForStove(kitchen, stove, isShowingUnlearned)) WriteBookRow(json, kitchen, stove, dish, station.Reserved);
+        foreach (var dish in Finder.ForStove(kitchen, stove, fresh, isShowingUnlearned)) WriteBookRow(json, kitchen, stove, fresh, dish, station.Reserved);
 
         json.WriteEndArray();
         json.WriteStartArray("pantry");
@@ -134,10 +135,9 @@ public static class CookView
     /// One recipe book row: whether the player's food covers it, where that food is, what is missing, the soonest any
     /// of it spoils, and the odds of cooking it fresh on this stove (null while locked).
     /// </summary>
-    private static void WriteBookRow(Utf8JsonWriter json, Kitchen kitchen, Stove stove, Dish dish, Reservation? reserved)
+    private static void WriteBookRow(Utf8JsonWriter json, Kitchen kitchen, Stove stove, FreshFood fresh, Dish dish, Reservation? reserved)
     {
-        var sources = Finder.Sources(kitchen, dish);
-        var soonest = sources.Select(stack => stack.HoursLeft).Where(hours => hours != null).Min();
+        var (soonest, places) = Spread(fresh, dish);
         var odds = dish.State == Readiness.Locked ? null : Finder.PlainOdds(kitchen, dish.Recipe, stove.QualityBonus);
 
         json.WriteStartObject();
@@ -158,7 +158,7 @@ public static class CookView
         WriteIds(json, "gives", DishGives.Expected(kitchen.Book, dish.Recipe, odds?.Chances));
         json.WriteStartArray("places");
 
-        foreach (var place in sources.Select(stack => stack.Place).Distinct().OrderBy(place => place, StringComparer.Ordinal)) json.WriteStringValue(place);
+        foreach (var place in places) json.WriteStringValue(place);
 
         json.WriteEndArray();
         json.WriteStartArray("missing");
@@ -177,6 +177,32 @@ public static class CookView
         else json.WriteNull("hours");
 
         json.WriteEndObject();
+    }
+
+    /// <summary>
+    /// Where the fresh food a dish could draw on is kept, in order, and the soonest any of it spoils: one pass over each
+    /// want's stacks, with no list of them built, as every book row asks.
+    /// </summary>
+    private static (double? Soonest, List<string> Places) Spread(FreshFood fresh, Dish dish)
+    {
+        double? soonest = null;
+        var places = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var need in dish.Needs)
+        {
+            foreach (var stack in fresh.Matching(dish.Recipe.IsExact, need.Id))
+            {
+                if (stack.HoursLeft is { } hours && (soonest == null || hours < soonest)) soonest = hours;
+
+                places.Add(stack.Place);
+            }
+        }
+
+        var sorted = places.ToList();
+
+        sorted.Sort(StringComparer.Ordinal);
+
+        return (soonest, sorted);
     }
 
     /// <summary>For each dish queued on this stove, whether food is set aside for it; false means it waits for more food.</summary>

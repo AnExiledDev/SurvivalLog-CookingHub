@@ -35,7 +35,7 @@ public static class Finder
 
     public static IReadOnlyList<Dish> For(Kitchen kitchen)
     {
-        var fresh = kitchen.Stock.Where(stack => !stack.IsSpoiled && stack.Count > 0).ToList();
+        var fresh = new FreshFood(kitchen.Book, kitchen.Stock);
         var isListed = Listed(kitchen);
         var shown = Cookable(kitchen).Where(isListed).ToList();
         var dishes = new List<Dish>();
@@ -57,9 +57,12 @@ public static class Finder
     /// can be told where its food is and what it lacks. With isShowingUnlearned, the recipes the game does not list yet
     /// come too, marked IsUnlearned.
     /// </summary>
-    public static IReadOnlyList<Dish> ForStove(Kitchen kitchen, Stove stove, bool isShowingUnlearned = false)
+    public static IReadOnlyList<Dish> ForStove(Kitchen kitchen, Stove stove, bool isShowingUnlearned = false) =>
+        ForStove(kitchen, stove, new FreshFood(kitchen.Book, kitchen.Stock), isShowingUnlearned);
+
+    /// <summary>The same, with the kitchen's fresh food already sorted, so the caller can look up each row's sources in it too.</summary>
+    public static IReadOnlyList<Dish> ForStove(Kitchen kitchen, Stove stove, FreshFood fresh, bool isShowingUnlearned = false)
     {
-        var fresh = kitchen.Stock.Where(stack => !stack.IsSpoiled && stack.Count > 0).ToList();
         var isListed = Listed(kitchen);
 
         return Cookable(kitchen)
@@ -67,14 +70,6 @@ public static class Finder
             .OrderBy(recipe => recipe.Id)
             .Select(recipe => Check(kitchen, fresh, recipe, varies: false, isUnlearned: !isListed(recipe)))
             .ToList();
-    }
-
-    /// <summary>The fresh stacks a dish could draw on, wherever they are kept.</summary>
-    public static IReadOnlyList<Stack> Sources(Kitchen kitchen, Dish dish)
-    {
-        var fresh = kitchen.Stock.Where(stack => !stack.IsSpoiled && stack.Count > 0).ToList();
-
-        return dish.Needs.SelectMany(need => Matching(kitchen.Book, fresh, dish.Recipe.IsExact, need.Id)).Distinct().ToList();
     }
 
     /// <summary>The odds of a dish cooked from fresh food on this stove with nothing added, or null when it has none.</summary>
@@ -107,13 +102,13 @@ public static class Finder
     private static bool IsSelfKnown(Kitchen kitchen, Recipe recipe) =>
         kitchen.Cooked.Contains(recipe.Id) || recipe.ShowLevel > 0 && kitchen.Level >= recipe.ShowLevel;
 
-    private static Dish Check(Kitchen kitchen, IReadOnlyList<Stack> fresh, Recipe recipe, bool varies, bool isUnlearned = false)
+    private static Dish Check(Kitchen kitchen, FreshFood fresh, Recipe recipe, bool varies, bool isUnlearned = false)
     {
-        var needs = Wants(recipe).Select(want => new Need(want.Id, !recipe.IsExact, want.Want, Matching(kitchen.Book, fresh, recipe.IsExact, want.Id).Sum(stack => stack.Count))).ToList();
+        var needs = Wants(recipe).Select(want => new Need(want.Id, !recipe.IsExact, want.Want, fresh.Matching(recipe.IsExact, want.Id).Sum(stack => stack.Count))).ToList();
         var missing = needs.Sum(need => need.Missing);
         var isUnlocked = recipe.IsUnlocked(kitchen.Level, kitchen.CraftUnlocked);
         var state = !isUnlocked ? Readiness.Locked : missing == 0 ? Readiness.Ready : missing == 1 ? Readiness.MissingOne : Readiness.Short;
-        var usesSpoiling = needs.Any(need => Matching(kitchen.Book, fresh, recipe.IsExact, need.Id).Any(stack => stack.HoursLeft <= SpoilingHours));
+        var usesSpoiling = needs.Any(need => fresh.Matching(recipe.IsExact, need.Id).Any(stack => stack.HoursLeft <= SpoilingHours));
         var perfect = state == Readiness.Ready ? PlainOdds(kitchen, recipe, kitchen.Stove?.QualityBonus ?? 0)?.Of(Tier.Perfect) : null;
 
         return new Dish(recipe, varies, state, needs, !kitchen.Cooked.Contains(recipe.Id), usesSpoiling, perfect, isUnlearned);

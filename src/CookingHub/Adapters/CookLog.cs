@@ -38,6 +38,12 @@ internal sealed class CookLog
             // The file copy below still has a chance.
         }
 
+        WriteFileOnly(message);
+    }
+
+    /// <summary>For a line from a worker thread, which must leave the BepInEx console to the game's thread.</summary>
+    public void WriteFileOnly(string message)
+    {
         if (!IsFileOn) return;
 
         lock (_gate) AppendToFile($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
