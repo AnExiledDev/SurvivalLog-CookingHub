@@ -2,6 +2,8 @@ Name: Cooking Hub
 Summary: A better stove screen: odds for every dish, search and filters, Load from your storages, a cooking queue that starts the next dish when you empty the stove, Repeat last and fuel top up. Lists every dish the stove can make from your food, soonest to spoil first, and shows why a dish turns out the way it does, with one-click fixes for better results.
 
 Description (BBCode):
+[center][img]https://sldb.core-directive.com/media/save/1-save-safe.png[/img][/center]
+
 Know what you can cook and how good it will turn out before you light the stove. Cooking Hub shows the chance of each quality right on the game's cooking screen, with the reasons and one-press fixes, lists every dish the stove can make from your food, and fills a pot with food from your bag and home storages. Open any stove, juicer, microwave, oven or coffee machine and its cooking screen gains tabs, a searchable recipe book with odds, a Load button that pulls food from storage, a cooking queue, Repeat last and a fuel top up.
 
 [size=5]Main features[/size]
