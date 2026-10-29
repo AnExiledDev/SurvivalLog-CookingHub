@@ -11,6 +11,12 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 | `ShowUnlearnedRecipes` | `false` | The cooking screen gets a Not learned tab listing the recipes this stove can cook that the recipe book does not show yet, with the food you have for each. When `false`, only the recipes the game shows are listed. |
 | `PutDishesAway` | `false` | A finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away; a storage already holding that dish is the fallback. A dish no storage takes stays in the stove. |
 
+## Interface
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `UiScale` | `0` | How big Cooking Hub's pop-up messages are drawn, in percent, from 75 to 200. At `0` they follow the UI size set in Exiled's Toolkit (its `UiScale`). Needs Exiled's Toolkit 0.11.0 or newer. |
+
 ## Diagnostics
 
 | Setting | Default | What it does |

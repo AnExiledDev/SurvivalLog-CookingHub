@@ -500,6 +500,7 @@ public class PageScriptTests
 
         // The second notice reuses the toast already made, so it is not handed twice.
         Assert.Equal("1", page.Text("handed.length"));
+        Assert.Equal("1", page.Text("handed.filter(function (h) { return h.options.mod === 'CookingHub'; }).length"));
         Assert.Equal("ch-toast", page.Text("handed[0].el.id"));
         Assert.True(page.Is("handed[0].options.fit === false"));
     }
