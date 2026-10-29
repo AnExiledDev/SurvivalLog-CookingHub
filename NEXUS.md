@@ -32,7 +32,7 @@ Works in English and Chinese.
 [*]Survival Log 1.1.19611. A game update can break it until the mod is updated.[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]. Install it first.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]. Cooking Hub loads food Stacking made stackable one unit at a time, the way Stacking wants it. Without Stacking, nothing changes.[/*]
-[*]Optional: [url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game, and put-away dishes show as toasts. Without it, they take effect at the next game start. With 0.10.0 or newer, its UI size setting also sizes the pop-up messages, and with 0.11.0 or newer, Cooking Hub's own UiScale setting can set their size for this mod alone.[/*]
+[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.11.0 or newer. Cooking Hub does not load without it. It shows Cooking Hub's messages as toasts and applies settings changed on the Mod Manager's Mods screen without a restart.[/*]
 [/list]
 
 [size=5]Installation[/size]
@@ -85,7 +85,7 @@ Cooking Hub 包含 ProjectCook 菜品预览的功能，两者请只装一个。�
 [*]Survival Log 1.1.19611。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]，请先安装。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]。Cooking Hub 会按 Stacking 的规则，把它变成可堆叠的食材一份一份放入锅中。未安装 Stacking 时不受影响。[/*]
-[*]可选：[url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.4.0 或更新版本。安装后，在 Mod Manager 的模组界面修改的设置无需重启游戏即可生效，自动收菜也会弹出提示；未安装时，在下次启动游戏时生效。0.10.0 或更新版本还能用它的界面大小设置调整弹出提示的大小，0.11.0 或更新版本还可以用 Cooking Hub 自己的 UiScale 设置单独调整本模组弹出提示的大小。[/*]
+[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.11.0 或更新版本。没有它本模组不会加载。它把 Cooking Hub 的消息显示为弹出提示，并让在 Mod Manager 的模组界面修改的设置无需重启游戏即可生效。[/*]
 [/list]
 
 [size=5]安装[/size]

@@ -8,18 +8,16 @@ using HarmonyLib;
 namespace CookingHub;
 
 [BepInPlugin(Guid, "Cooking Hub", Version)]
-[BepInDependency(OptionalLive.ToolkitGuid, BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency(OptionalLive.ToolkitGuid, OptionalLive.ToolkitVersion)]
 [BepInDependency(StackingGuid, BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.7.0";
+    private const string Version = "0.7.1";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     public override void Load()
     {
-        if (!OptionalLive.IsToolkitInstalled) Log.LogInfo(OptionalLive.MissingNote);
-
         OptionalUiSize.Bind(Config);
 
         var isSpoilingFirst = Config.Bind("General", "FillSpoilingFirst", true,
@@ -40,13 +38,11 @@ public sealed class Plugin : BasePlugin
         var log = new CookLog(Log, Path.Combine(Paths.BepInExRootPath, "cooking-hub.log"));
         var harmony = new Harmony(Guid);
         var game = new GameCooking(log.Write);
-        var toasts = new DishToasts(log.Write);
         var session = new CookSession(
             game,
             game,
             game,
             new WebPage(log.Write),
-            note => toasts.Show(note, GameLanguage.IsChinese()),
             log.Write);
 
         OptionalLive.Watch(isLoggingToFile, isOn => log.IsFileOn = isOn);

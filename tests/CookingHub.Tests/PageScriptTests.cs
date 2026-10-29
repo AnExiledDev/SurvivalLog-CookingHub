@@ -469,66 +469,22 @@ public class PageScriptTests
         Assert.Equal(2, page.Sent.Count);
     }
 
-    [Fact]
-    public void A_press_result_shows_as_a_toast_over_the_game_and_an_empty_one_hides_it()
-    {
-        var page = new PageScript();
-
-        page.Status("The pot is filled for Stir Fry.");
-
-        Assert.Equal("block", page.Text("document.getElementById('ch-toast').style.display"));
-        Assert.Equal("The pot is filled for Stir Fry.", page.Text("document.getElementById('ch-toast').textContent"));
-
-        page.Status("");
-
-        Assert.Equal("none", page.Text("document.getElementById('ch-toast').style.display"));
-    }
-
-    // ===== UI size (Exiled's Toolkit) =====
-
     // Stands in for Exiled's Toolkit's window.ExiledUi and keeps what each call handed it.
     private const string FakeUi = "var handed = []; window.ExiledUi = { size: function (el, options) { handed.push({ el: el, options: options }); } }";
 
+    /// <summary>A press result is the plugin's Toolkit toast, so the page draws no notice of its own and hands nothing to be sized.</summary>
     [Fact]
-    public void The_toast_is_handed_to_the_toolkit_once_and_never_shrunk()
+    public void A_press_result_draws_nothing_on_the_page()
     {
         var page = new PageScript();
         page.Run(FakeUi);
 
         page.Status("The pot is filled for Stir Fry.");
-        page.Status("The stove is topped up.");
 
-        // The second notice reuses the toast already made, so it is not handed twice.
-        Assert.Equal("1", page.Text("handed.length"));
-        Assert.Equal("1", page.Text("handed.filter(function (h) { return h.options.mod === 'CookingHub'; }).length"));
-        Assert.Equal("ch-toast", page.Text("handed[0].el.id"));
-        Assert.True(page.Is("handed[0].options.fit === false"));
-    }
-
-    [Fact]
-    public void A_toast_the_page_lost_is_handed_again_when_it_is_made_anew()
-    {
-        var page = new PageScript();
-        page.Run(FakeUi);
-        page.Status("The pot is filled for Stir Fry.");
-
-        page.Run("document.getElementById('ch-toast').remove()");
-        page.Status("The stove is topped up.");
-
-        Assert.Equal("2", page.Text("handed.length"));
-        Assert.True(page.Is("handed[1].el === document.getElementById('ch-toast')"));
-    }
-
-    [Fact]
-    public void Before_the_toolkit_has_loaded_the_toast_waits_in_the_list_it_reads()
-    {
-        var page = new PageScript();
-
-        page.Status("The pot is filled for Stir Fry.");
-
-        Assert.Equal("1", page.Text("window.__exiledUiWait.length"));
-        Assert.Equal("ch-toast", page.Text("window.__exiledUiWait[0][0].id"));
-        Assert.True(page.Is("window.__exiledUiWait[0][1].fit === false"));
+        Assert.False(page.Is("document.getElementById('ch-toast')"));
+        Assert.False(page.Is("document.body.textContent.indexOf('The pot is filled for Stir Fry.') >= 0"));
+        Assert.Equal("0", page.Text("handed.length"));
+        Assert.False(page.Is("window.__exiledUiWait && window.__exiledUiWait.length"));
     }
 
     [Fact]

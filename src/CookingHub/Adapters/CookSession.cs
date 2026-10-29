@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CookingHub.Core;
+using ExiledToolkit;
 
 namespace CookingHub.Adapters;
 
@@ -19,7 +20,6 @@ internal sealed class CookSession
     private readonly ICookGame _game;
     private readonly IDishGame _dishes;
     private readonly WebPage _page;
-    private readonly Func<DishNote, bool> _toast;
     private readonly IKitchenWatch _watch;
     private readonly WebKeyboard _keyboard = new();
     private readonly Action<string> _log;
@@ -52,13 +52,12 @@ internal sealed class CookSession
     private readonly HashSet<long> _toldStays = new();
     private readonly DishRetry _dishRetry = new();
 
-    public CookSession(ICookGame game, IDishGame dishes, IKitchenWatch watch, WebPage page, Func<DishNote, bool> toast, Action<string> log)
+    public CookSession(ICookGame game, IDishGame dishes, IKitchenWatch watch, WebPage page, Action<string> log)
     {
         _game = game;
         _dishes = dishes;
         _watch = watch;
         _page = page;
-        _toast = toast;
         _log = log;
     }
 
@@ -149,7 +148,7 @@ internal sealed class CookSession
             var note = DishStore.Note(stored, IsChinese);
 
             _log(note.Text);
-            if (!_toast(note)) _page.Status(note.Text);
+            Toast(note);
         }
     }
 
@@ -215,7 +214,7 @@ internal sealed class CookSession
         var note = new DishNote(turn.Message, turn.Step is QueueStep.Waiting or QueueStep.NotStarted);
 
         _log($"queue {turn.StoveId}: {turn.Step} -> {turn.Message}");
-        if (!_toast(note)) _page.Status(turn.Message);
+        Toast(note);
     }
 
     /// <summary>
@@ -230,6 +229,9 @@ internal sealed class CookSession
         _startIds = recipeIds;
     }
 
+    /// <summary>A put-away or queue notice; one that needs the player's eye shows as a warning.</summary>
+    private void Toast(DishNote note) => _page.Toast(note.Text, note.IsWarning ? ToastKind.Warning : ToastKind.Success);
+
     /// <summary>One command that throws must not cost the rest of the frame its commands.</summary>
     private void HandleSafely(PageCommand command)
     {
@@ -240,7 +242,7 @@ internal sealed class CookSession
         catch (Exception ex)
         {
             _log($"page command {command} failed: {ex}");
-            _page.Status(Texts.Failed.Pick(IsChinese));
+            _page.Status(Texts.Failed.Pick(IsChinese), ToastKind.Error);
         }
     }
 
@@ -472,7 +474,7 @@ internal sealed class CookSession
             _log($"{name} failed: {ex}");
         }
 
-        _page.Status(message);
+        _page.Status(message, message == Texts.Failed.Pick(IsChinese) ? ToastKind.Error : ToastKind.Info);
         Refresh(Clock.Now);
     }
 

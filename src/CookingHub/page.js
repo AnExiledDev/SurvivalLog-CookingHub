@@ -1,15 +1,13 @@
 // Cooking Hub's web half. Runs in Root.html, the document every game page iframe sits in. Adds tabs, food and odds to
-// the game's own cooking screen, and shows a short toast for what each press did. Talks to the plugin through
+// the game's own cooking screen. Talks to the plugin through
 // vuplex.postMessage("slmod|cookinghub|<verb>") and is driven by window.__slcookinghub.
 (function () {
   if (window.__slcookinghub) return;
 
   var PREFIX = 'slmod|cookinghub|';
   var STATION_STYLE_ID = 'ch-station-style';
-  var TOAST_STYLE_ID = 'ch-toast-style';
   var NUDGES_ID = 'ch-nudges';
   var BUSY_TIMEOUT_MS = 5000;
-  var TOAST_MS = 3500;
   var SVG_NS = 'http://www.w3.org/2000/svg';
   // Fail, Normal, Good, Perfect: the order the odds arrive in.
   var TIER_WORD = ['tFail', 'tNormal', 'tGood', 'tPerfect'];
@@ -27,8 +25,6 @@
   var dishCount = 0;
   var byIdMemo = { version: -1, map: {} };
   var countsMemo = { key: '', counts: null };
-  var toast = null;
-  var toastTimer = 0;
   var isBusy = false;
   var busyTimer = 0;
   var hasReportedPageAccess = false;
@@ -101,30 +97,6 @@
     if (waiting.length > 32) waiting.shift();
   }
 
-  var TOAST_CSS = '#ch-toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:2147483001;pointer-events:none;display:none;max-width:640px;text-align:center;padding:10px 18px;border-radius:4px;border:1px solid rgba(255,200,58,.6);background:linear-gradient(180deg,rgba(64,52,40,.97),rgba(44,36,28,.97));color:#f0e8d8;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.6)}';
-
-  // The toast is made on first use, and again if the root page lost it; the style outlives a lost toast, so it is added once.
-  function toastNode() {
-    if (toast && document.body.contains(toast)) return toast;
-
-    if (!document.getElementById(TOAST_STYLE_ID)) {
-      var style = make(document, 'style');
-
-      style.id = TOAST_STYLE_ID;
-      style.textContent = TOAST_CSS;
-      document.head.appendChild(style);
-    }
-
-    toast = make(document, 'div');
-    toast.id = 'ch-toast';
-    document.body.appendChild(toast);
-    // Drawn at the player's UI size (Exiled's Toolkit); a short notice is never shrunk. The additions to the game's
-    // cooking screen keep the game's size, like the rest of that screen.
-    uiSize(toast, { fit: false });
-
-    return toast;
-  }
-
   // ---------- data ----------
 
   function catalog(data) {
@@ -152,22 +124,9 @@
 
   // ---------- API ----------
 
-  // What a press did, as a toast over the game; an empty status only hides it.
-  function status(message) {
-    var node = toastNode();
-
+  // A press is done: the plugin shows what it did as an Exiled's Toolkit toast, so the page only frees its buttons.
+  function status() {
     clearBusy();
-
-    if (!message) {
-      node.style.display = 'none';
-
-      return;
-    }
-
-    node.textContent = message;
-    node.style.display = 'block';
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { node.style.display = 'none'; }, TOAST_MS);
   }
 
   // The odds for the game's cooking screen; drawn at once and kept up by the page check.

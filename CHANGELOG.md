@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1
+
+- Cooking Hub's messages (what a button did, put-away dishes, the cooking queue) now all show as Exiled's Toolkit toasts. Those toasts also go to the Notifications history.
+- Exiled's Toolkit 0.11.0 or newer is now required.
+- Made for Survival Log 1.1.19611.
+
 ## 0.7.0
 
 - New: `UiScale` under Interface sets the size of Cooking Hub's pop-up messages on their own, from 75% to 200%, whatever Exiled's Toolkit's UI size is. At 0, the default, they follow the Toolkit's. Needs Exiled's Toolkit 0.11.0 or newer.
