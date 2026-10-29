@@ -364,6 +364,10 @@ function openCooking(recipeIds) {
   frame.contentDocument = new FakeDocument();
   frame.contentWindow = {
     State: {},
+    // The page fits itself to the window on resize; each one sent to it is counted here.
+    resizes: 0,
+    Event: function (type) { this.type = type; },
+    dispatchEvent: function (e) { if (e.type === 'resize') frame.contentWindow.resizes++; },
     i18nText: { recipeReady: 'Ready to cook', recipeCraftable: 'Can cook', recipeInsufficient: 'Not enough materials' },
     showItemTip: function (item) {
       tip.textContent = item.name;
@@ -401,13 +405,16 @@ function forecast(frame, recipeIds, cardClass) {
   });
 }
 
-// The rest of the station screen: the recipe book (#recipeSection with its title and one .book-item row per entry of
+// The rest of the station screen: the recipe book panel (.right-panel inside #cookingSystem, as on the game's page,
+// holding #recipeSection with its title and one .book-item row per entry of
 // State.lastRecipes, as renderRecipeListFromData draws them), the action buttons with the game's Cook button, and the
 // fuel header. Presses of the Cook button are counted in cookPresses.
 var cookPresses = 0;
 
 function stationParts(frame, recipes, isCooking) {
   var doc = frame.contentDocument;
+  var screen = new FakeElement('div');
+  var panel = new FakeElement('div');
   var section = new FakeElement('div');
   var title = new FakeElement('div');
   var list = new FakeElement('div');
@@ -415,6 +422,8 @@ function stationParts(frame, recipes, isCooking) {
   var cook = new FakeElement('button');
   var fuel = new FakeElement('div');
 
+  screen.id = 'cookingSystem';
+  panel.className = 'panel right-panel';
   section.id = 'recipeSection';
   title.id = 'recipePanelTitle';
   list.id = 'recipeList';
@@ -441,7 +450,9 @@ function stationParts(frame, recipes, isCooking) {
   cook.click = function () { cookPresses++; };
   actions.appendChild(cook);
   fuel.className = 'fuel-section-header';
-  doc.body.appendChild(section);
+  panel.appendChild(section);
+  screen.appendChild(panel);
+  doc.body.appendChild(screen);
   doc.body.appendChild(actions);
   doc.body.appendChild(fuel);
   frame.contentWindow.State.lastRecipes = recipes;

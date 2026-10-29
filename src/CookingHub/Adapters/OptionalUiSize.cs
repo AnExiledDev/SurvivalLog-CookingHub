@@ -23,8 +23,8 @@ internal static class OptionalUiSize
     public static void Bind(ConfigFile config)
     {
         var entry = config.Bind("Interface", "UiScale", 0, new ConfigDescription(
-            "How big Cooking Hub's pop-up messages are drawn, in percent, from 75 to 200. At 0 they follow the UI size set in Exiled's Toolkit (its UiScale). Needs Exiled's Toolkit 0.11.0 or newer.\n" +
-            "Cooking Hub 弹出提示的显示大小（百分比），范围 75 到 200。设为 0 时跟随 Exiled's Toolkit 的界面大小设置（它的 UiScale）。需要 Exiled's Toolkit 0.11.0 或更新版本。",
+            "How big Cooking Hub's tabs and the recipe book are drawn on the cooking screen, in percent, from 75 to 200. At 0 they follow the UI size set in Exiled's Toolkit (its UiScale). When the cooking screen would no longer fit the window, the book is drawn as big as still fits.\n" +
+            "烹饪界面上 Cooking Hub 的页签和菜谱书的显示大小（百分比），范围 75 到 200。设为 0 时跟随 Exiled's Toolkit 的界面大小设置（它的 UiScale）。烹饪界面放不进窗口时，菜谱书按仍能放下的最大尺寸显示。",
             new AcceptableValueRange<int>(0, 200)));
 
         OptionalLive.Watch(entry, Set);

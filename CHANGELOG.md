@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0
+
+- `UiScale` under Interface now sizes Cooking Hub's tabs and the recipe book on the cooking screen. At 0 they follow Exiled's Toolkit's UI size. When the bigger book would no longer fit the window, it is drawn as big as still fits, and the game's other panels keep their size.
+- Made for Survival Log 1.1.19611.
+
 ## 0.7.1
 
 - Cooking Hub's messages (what a button did, put-away dishes, the cooking queue) now all show as Exiled's Toolkit toasts. Those toasts also go to the Notifications history.

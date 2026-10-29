@@ -97,6 +97,24 @@
     if (waiting.length > 32) waiting.shift();
   }
 
+  // The recipe book panel, which holds the tabs and every view, is drawn at the UI size as far as the whole cooking
+  // screen still fits the window at the page's own size, so the game never draws its own panels smaller for it. The
+  // page fits itself to the window on resize, so it is told after each new zoom. Handed over once per panel.
+  function sizeBook(doc, win, panel) {
+    if (!panel || panel.__chSized) return;
+
+    var screen = doc.getElementById('cookingSystem');
+
+    if (!screen) return;
+
+    panel.__chSized = true;
+    uiSize(panel, {
+      fit: screen,
+      pageFits: true,
+      onZoom: function () { win.dispatchEvent(new win.Event('resize')); }
+    });
+  }
+
   // ---------- data ----------
 
   function catalog(data) {
@@ -321,6 +339,7 @@
     if (station.tab === 'unlearned' && !overlay.unlearned) station.tab = 'book';
 
     if (section && list) {
+      sizeBook(doc, win, section.parentNode);
       hideBookTitle(doc);
       drawBar(doc, section, list);
       drawBookRows(doc, win, list);

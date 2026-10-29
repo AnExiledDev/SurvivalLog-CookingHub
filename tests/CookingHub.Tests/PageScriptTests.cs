@@ -487,6 +487,36 @@ public class PageScriptTests
         Assert.False(page.Is("window.__exiledUiWait && window.__exiledUiWait.length"));
     }
 
+    /// <summary>
+    /// The tabs and views live in the game's recipe book panel, so that whole panel is what follows Cooking Hub's UI
+    /// size, fitted against the whole cooking screen at the page's own size. Each new zoom makes the page fit itself to
+    /// the window again, and later page checks do not hand the panel over again.
+    /// </summary>
+    [Fact]
+    public void The_recipe_book_panel_is_handed_to_the_toolkit_once_and_a_new_zoom_refits_the_page()
+    {
+        var kitchen = Stocked().Kitchen();
+        var page = new PageScript();
+
+        page.Run(FakeUi);
+        page.Catalog(CatalogView.Write(Book));
+        page.OpenCooking();
+        page.Run($"stationParts(cookingFrame, {StationBook}, false)");
+        page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: true, null, false));
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal("1", page.Text("handed.length"));
+        Assert.True(page.Is("handed[0].el === cookingPage().getElementById('recipeSection').parentNode && handed[0].el.className.indexOf('right-panel') >= 0"));
+        Assert.True(page.Is("handed[0].options.mod === 'CookingHub' && handed[0].options.pageFits === true"));
+        Assert.True(page.Is("handed[0].options.fit === cookingPage().getElementById('cookingSystem')"));
+        Assert.Equal("0", page.Text("cookingFrame.contentWindow.resizes"));
+
+        page.Run("handed[0].options.onZoom(1.5)");
+
+        Assert.Equal("1", page.Text("cookingFrame.contentWindow.resizes"));
+    }
+
     [Fact]
     public void The_hud_gets_no_cooking_hub_button_and_the_script_offers_no_window()
     {

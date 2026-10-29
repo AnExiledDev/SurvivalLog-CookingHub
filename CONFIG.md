@@ -15,7 +15,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `UiScale` | `0` | How big Cooking Hub's pop-up messages are drawn, in percent, from 75 to 200. At `0` they follow the UI size set in Exiled's Toolkit (its `UiScale`). Needs Exiled's Toolkit 0.11.0 or newer. |
+| `UiScale` | `0` | How big Cooking Hub's tabs and the recipe book are drawn on the cooking screen, in percent, from 75 to 200. At `0` they follow the UI size set in Exiled's Toolkit (its `UiScale`). When the cooking screen would no longer fit the window, the book is drawn as big as still fits. |
 
 ## Diagnostics
 
