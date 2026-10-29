@@ -114,6 +114,24 @@ public class CookRunTests
         Assert.Equal(new long[] { 2, 3, 8, 9 }, InPot(game));
     }
 
+    // Three Watermelons in a juicer make three Watermelon Juices: loading a dish the pot already makes adds one more.
+    [Fact]
+    public void Fill_at_the_multi_pot_level_adds_the_same_dish_again_beside_the_one_in_the_pot()
+    {
+        var game = Stocked();
+
+        game.Level = Kitchen.ShippedMultiPotLevel;
+        game.Pot.Add(S(9, Rice, owner: Workbench));
+        game.Pot.Add(S(8, Pork, owner: Workbench));
+        game.Forecasts.Add(new Forecast(PorkRice, true, true));
+
+        var pressed = CookRun.Fill(game, PorkRice, true, false);
+
+        Assert.True(pressed.IsDone);
+        Assert.Equal("Added Pork Rice to the pot as one more dish.", pressed.Message);
+        Assert.Equal(new long[] { 2, 3, 8, 9 }, InPot(game));
+    }
+
     [Fact]
     public void Fill_at_the_multi_pot_level_takes_a_second_use_of_food_the_first_dish_already_used()
     {

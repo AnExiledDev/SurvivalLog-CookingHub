@@ -218,6 +218,32 @@ public class PageScriptTests
         Assert.Equal("", page.Text(Chips(ViewRow("Pork"))));
     }
 
+    // The game shows Ready and no fill once the pot makes a dish; a cook who can make several dishes in one pot still
+    // gets Load there, so three Watermelons go in for three juices.
+    [Theory]
+    [InlineData(0, "Load,Queue")]
+    [InlineData(-1, "Queue")]
+    public void A_dish_the_pot_already_makes_can_be_loaded_again_only_at_the_multi_pot_level(int fromMultiPot, string buttons)
+    {
+        var game = Stocked();
+
+        game.Level = Kitchen.ShippedMultiPotLevel + fromMultiPot;
+        game.Pot.Add(S(9, Rice, owner: Workbench));
+        game.Pot.Add(S(8, Pork, owner: Workbench));
+        game.Forecasts.Add(new Forecast(PorkRice, true, true));
+
+        var page = Station(game, book: $"[{{recipeId:{PorkRice},name:'Pork Rice',status:2,variantCount:1}}]");
+        var shown = page.Text(BookRow("Pork Rice") + ".querySelectorAll('.ch-st').filter(function (b) { return b.classList.contains('interactive-btn'); }).map(function (b) { return b.textContent; }).join(',')");
+
+        Assert.Equal(buttons, shown);
+
+        if (fromMultiPot < 0) return;
+
+        page.Click(BookRow("Pork Rice") + ".querySelector('.st-fill.interactive-btn')");
+
+        Assert.Equal(new PageCommand.Fill(PorkRice), Assert.Single(page.Sent));
+    }
+
     private static string BookRow(string name) =>
         $"cookingPage().querySelectorAll('.book-item').filter(function (r) {{ return r.textContent.indexOf('{name}') >= 0; }})[0]";
 

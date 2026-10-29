@@ -60,6 +60,7 @@ public static class CookView
         WriteIds(json, "queue", station.Queue);
         WriteQueueCovered(json, stove, station);
         json.WriteBoolean("queueFull", station.Queue.Count >= CookQueue.Limit);
+        json.WriteBoolean("addsDish", CookRun.KeepsPot(kitchen, stove, 1));
         WriteIds(json, "ids", advice.Lines.Select(line => line.RecipeId));
         json.WriteStartArray("lines");
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CookingHub.Core;
 using ExiledToolkit;
 
@@ -204,11 +205,13 @@ internal sealed class CookSession
             _idleBefore.Remove(turn.StoveId);
         }
 
-        if (turn.RecipeId is { } recipeId)
-        {
-            _queue = _queue.Remove(turn.StoveId, recipeId);
+        foreach (var recipeId in turn.RecipeIds) _queue = _queue.Remove(turn.StoveId, recipeId);
 
-            if (turn.Step == QueueStep.Loaded && _book?.Recipes.TryGetValue(recipeId, out var recipe) == true) AskToStart(turn.StoveId, QueueCook.StartIds(_book, recipe), now);
+        if (turn.Step == QueueStep.Loaded && _book != null)
+        {
+            var recipes = turn.RecipeIds.Where(_book.Recipes.ContainsKey).Select(id => _book.Recipes[id]).ToList();
+
+            if (recipes.Count > 0) AskToStart(turn.StoveId, QueueCook.StartIds(_book, recipes), now);
         }
 
         var note = new DishNote(turn.Message, turn.Step is QueueStep.Waiting or QueueStep.NotStarted);

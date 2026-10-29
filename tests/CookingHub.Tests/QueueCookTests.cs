@@ -35,7 +35,7 @@ public class QueueCookTests
         var started = Assert.Single(game.Started);
 
         Assert.Equal(QueueStep.Started, turn.Step);
-        Assert.Equal(PorkRice, turn.RecipeId);
+        Assert.Equal(new[] { PorkRice }, turn.RecipeIds);
         Assert.Equal("Started Pork Rice from the queue on Kitchen Stove.", turn.Message);
         Assert.Equal(new long[] { 1, 2 }, InPot(game, Kitchen));
         Assert.Equal(Kitchen, started.StoveId);
@@ -51,7 +51,7 @@ public class QueueCookTests
 
         var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, PorkRice).Add(Kitchen, StirFry)));
 
-        Assert.Equal(StirFry, turn.RecipeId);
+        Assert.Equal(new[] { StirFry }, turn.RecipeIds);
         Assert.Equal(new long[] { 1, 2 }, InPot(game, Kitchen));
     }
 
@@ -64,7 +64,7 @@ public class QueueCookTests
 
         var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, Feast).Add(Kitchen, PorkRice).Add(Kitchen, StirFry)));
 
-        Assert.Equal(StirFry, turn.RecipeId);
+        Assert.Equal(new[] { StirFry }, turn.RecipeIds);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class QueueCookTests
         var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, PorkRice)));
 
         Assert.Equal(QueueStep.Waiting, turn.Step);
-        Assert.Null(turn.RecipeId);
+        Assert.Empty(turn.RecipeIds);
         Assert.Equal("Kitchen Stove has dishes queued but no fuel or power.", turn.Message);
         Assert.Empty(game.IdlePots[Kitchen]);
         Assert.Empty(game.Started);
@@ -118,7 +118,7 @@ public class QueueCookTests
         var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, PorkRice)));
 
         Assert.Equal(QueueStep.Loaded, turn.Step);
-        Assert.Equal(PorkRice, turn.RecipeId);
+        Assert.Equal(new[] { PorkRice }, turn.RecipeIds);
         Assert.Equal(new long[] { 1, 2 }, InPot(game, Kitchen));
         Assert.Empty(game.Started);
     }
@@ -134,7 +134,7 @@ public class QueueCookTests
         var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, PorkRice)));
 
         Assert.Equal(QueueStep.NotStarted, turn.Step);
-        Assert.Equal(PorkRice, turn.RecipeId);
+        Assert.Equal(new[] { PorkRice }, turn.RecipeIds);
     }
 
     [Fact]
@@ -191,5 +191,94 @@ public class QueueCookTests
         Assert.Equal(QueueStep.Started, turn.Step);
         Assert.Equal(new long[] { 2, 4 }, InPot(game, Porch));
         Assert.Contains(game.Stock, stack => stack.InstanceId == 1);
+    }
+
+    private static FakeGame ThreePorkRice() => new()
+    {
+        IsStoveOpen = false,
+        Level = Core.Kitchen.ShippedMultiPotLevel,
+        Stock = { S(1, Rice), S(2, Pork), S(3, Rice), S(4, Pork), S(5, Rice), S(6, Pork) },
+    };
+
+    private static CookQueue PorkRiceTimes(int times)
+    {
+        var queue = CookQueue.Empty;
+
+        for (var i = 0; i < times; i++) queue = queue.Add(Kitchen, PorkRice);
+
+        return queue;
+    }
+
+    // Three Watermelons in a juicer make three Watermelon Juices: one pot cooks every queued dish its slots hold.
+    [Fact]
+    public void At_the_multi_pot_level_one_pot_cooks_every_queued_dish_that_fits()
+    {
+        var game = ThreePorkRice();
+
+        game.AddIdle(Kitchen, "Kitchen Stove");
+
+        var turn = Assert.Single(Run(game, PorkRiceTimes(3)));
+
+        Assert.Equal(QueueStep.Started, turn.Step);
+        Assert.Equal(new[] { PorkRice, PorkRice, PorkRice }, turn.RecipeIds);
+        Assert.Equal("Started Pork Rice x3 from the queue on Kitchen Stove.", turn.Message);
+        Assert.Equal(new long[] { 1, 2, 3, 4, 5, 6 }, InPot(game, Kitchen));
+        Assert.Equal(new[] { PorkRice, PorkRice, PorkRice }, Assert.Single(game.Started).RecipeIds);
+    }
+
+    [Fact]
+    public void A_queued_dish_whose_food_no_longer_fits_the_pot_waits_for_the_next_one()
+    {
+        var game = ThreePorkRice();
+
+        game.AddIdle(Kitchen, "Kitchen Stove", maxFood: 5);
+
+        var turn = Assert.Single(Run(game, PorkRiceTimes(3)));
+
+        Assert.Equal(new[] { PorkRice, PorkRice }, turn.RecipeIds);
+        Assert.Equal(4, game.IdlePots[Kitchen].Count);
+    }
+
+    [Fact]
+    public void Below_the_multi_pot_level_the_pot_cooks_one_dish()
+    {
+        var game = ThreePorkRice();
+
+        game.Level = Core.Kitchen.ShippedMultiPotLevel - 1;
+        game.AddIdle(Kitchen, "Kitchen Stove");
+
+        var turn = Assert.Single(Run(game, PorkRiceTimes(3)));
+
+        Assert.Equal(new[] { PorkRice }, turn.RecipeIds);
+        Assert.Equal(2, game.IdlePots[Kitchen].Count);
+    }
+
+    // The game matches the ids in order and each match uses up its food, so each dish's ids go in turn.
+    [Fact]
+    public void Different_dishes_share_the_pot_and_start_with_each_one_ids_in_queue_order()
+    {
+        var game = new FakeGame { IsStoveOpen = false, Level = Core.Kitchen.ShippedMultiPotLevel, Stock = { S(1, Rice), S(2, Pork), S(3, Wheat), S(4, Pork) } };
+
+        game.AddIdle(Kitchen, "Kitchen Stove");
+
+        var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, PorkRice).Add(Kitchen, StirFry)));
+
+        Assert.Equal(new[] { PorkRice, StirFry }, turn.RecipeIds);
+        Assert.Equal("Started Pork Rice, Stir Fry from the queue on Kitchen Stove.", turn.Message);
+        Assert.Equal(new[] { PorkRice, StirFry, FancyStirFry }, Assert.Single(game.Started).RecipeIds);
+    }
+
+    [Fact]
+    public void The_open_stove_is_filled_with_every_dish_that_fits_for_the_page_to_start()
+    {
+        var game = ThreePorkRice();
+
+        game.AddIdle(Kitchen, "Kitchen Stove", isOpen: true);
+
+        var turn = Assert.Single(Run(game, PorkRiceTimes(2)));
+
+        Assert.Equal(QueueStep.Loaded, turn.Step);
+        Assert.Equal(new[] { PorkRice, PorkRice }, turn.RecipeIds);
+        Assert.Equal(4, game.IdlePots[Kitchen].Count);
     }
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0
+
+- Load now shows on a recipe the pot already makes, once your cooking level lets one pot cook several dishes. Press it again to add another dish: three Watermelons in the Juicer make three Watermelon Juices, with no need to queue the extras.
+- The cooking queue fills a pot with as many queued dishes as fit, once your cooking level lets one pot cook several dishes, and cooks them together. Three queued Watermelon Juices now cook at once in the Juicer instead of one after another.
+- Made for Survival Log 1.1.20151.
+
 ## 0.8.0
 
 - `UiScale` under Interface now sizes Cooking Hub's tabs and the recipe book on the cooking screen. At 0 they follow Exiled's Toolkit's UI size. When the bigger book would no longer fit the window, it is drawn as big as still fits, and the game's other panels keep their size.

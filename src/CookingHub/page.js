@@ -689,11 +689,12 @@
   }
 
   // Where the food is or what is missing, a bar of the odds, the Perfect chance, Load when the game's own fill would
-  // refuse (its rows only count the bag) but the player's storages cover the dish, and Queue beside it. Food set aside
+  // refuse (its rows only count the bag) but the player's storages cover the dish, or the pot can take the dish once
+  // more, and Queue beside it. Food set aside
   // for queued dishes does not count, and a dish only it covers says so instead.
   // Keyed by what the row is drawn from, so a row whose dish did not change keeps its drawing through a new overlay.
   function decorateRow(doc, row, recipe, dish) {
-    var key = [recipe.recipeId, dish ? dishVersion[dish.id] : '-', recipe.status, recipe.craftLocked ? 1 : 0, recipe.variantCount, overlay.queueFull ? 1 : 0, catVersion].join(':');
+    var key = [recipe.recipeId, dish ? dishVersion[dish.id] : '-', recipe.status, recipe.craftLocked ? 1 : 0, recipe.variantCount, overlay.queueFull ? 1 : 0, overlay.addsDish ? 1 : 0, catVersion].join(':');
 
     if (row.getAttribute('data-ch') === key) return;
 
@@ -732,7 +733,9 @@
       return;
     }
 
-    if (recipe.status === 0 && dish.state === 'ready') {
+    // The game offers no fill once the pot already makes the dish, but a cook who can make several dishes in one pot
+    // can load it again: three Watermelons in a juicer make three Watermelon Juices.
+    if (dish.state === 'ready' && (recipe.status === 0 || (recipe.status === 2 && overlay.addsDish))) {
       row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
     }
 
