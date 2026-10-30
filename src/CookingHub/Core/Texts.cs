@@ -49,7 +49,10 @@ public static class Texts
     public static readonly Phrase NoLast = new("Nothing has been cooked on this stove since the game started.", "本次启动游戏后，这个灶具还没有做过菜。");
     public static readonly Phrase ToastSource = new("Cooking Hub", "烹饪中心");
     public static readonly Phrase DishStored = new("Put {0} away in {1}.", "已把{0}放进{1}。");
-    public static readonly Phrase DishStays = new("{0} stays in the stove: no storage tagged for it has room.", "{0}留在灶具里：没有带相应标签的储物放得下。");
+    public static readonly Phrase DishStays = new("{0} stays in the stove: no storage is tagged for it.", "{0}留在灶具里：没有带相应标签的储物。");
+    public static readonly Phrase DishStaysFull = new("{0} stays in the stove: {1} is full.", "{0}留在灶具里：{1}已满。");
+    public static readonly Phrase DishStaysAllFull = new("{0} stays in the stove: {1} and every other storage that takes it are full.", "{0}留在灶具里：{1}和其他能放它的储物都满了。");
+    public static readonly Phrase DishStaysQueue = new(" The stove's queue waits until it is out, and it is tried again every {0} seconds.", "这个灶具的队列要等它取出后才继续，每 {0} 秒会再试一次。");
     public static readonly Phrase Queued = new("Queued {0}.", "已将{0}加入队列。");
     public static readonly Phrase QueueFull = new("The queue is full.", "队列已满。");
     public static readonly Phrase SetAside = new("The food for {0} is set aside for queued dishes.", "做{0}的食材已留给排队的菜。");

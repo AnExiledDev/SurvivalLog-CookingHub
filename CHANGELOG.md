@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1
+
+- Put dishes away: when a pot cooks several dishes and a storage fills up partway, the warning for a dish left in the stove now says which storage is full (or that no storage is tagged for it), and that the stove's queue waits until the dish is out. The dish is tried again every 30 seconds, and the queue goes on once it is put away.
+- Made for Survival Log 1.1.20151.
+
 ## 0.9.0
 
 - Load now shows on a recipe the pot already makes, once your cooking level lets one pot cook several dishes. Press it again to add another dish: three Watermelons in the Juicer make three Watermelon Juices, with no need to queue the extras.

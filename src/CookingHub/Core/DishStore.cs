@@ -18,7 +18,13 @@ public abstract record Stored(ReadyDish Dish)
 {
     public sealed record Into(ReadyDish Dish, DishStorage Storage) : Stored(Dish);
 
-    public sealed record Stays(ReadyDish Dish) : Stored(Dish);
+    /// <summary>Refused names the storages that wanted the dish but had no room, best first; empty when none wants it.</summary>
+    public sealed record Stays(ReadyDish Dish, IReadOnlyList<string> Refused) : Stored(Dish)
+    {
+        public Stays(ReadyDish dish) : this(dish, Array.Empty<string>())
+        {
+        }
+    }
 }
 
 /// <summary>The game side of putting dishes away: the dishes waiting in stoves, the storages one could go to, and the move.</summary>
@@ -77,22 +83,38 @@ public static class DishStore
 
     private static Stored PutAway(IDishGame game, ReadyDish dish)
     {
+        var refused = new List<string>();
+
         foreach (var shelf in Targets(game.ShelvesFor(dish)))
         {
             if (game.Move(dish, shelf.OwnerId)) return new Stored.Into(dish, shelf);
+
+            refused.Add(shelf.Name);
         }
 
-        return new Stored.Stays(dish);
+        return new Stored.Stays(dish, refused);
     }
 
-    /// <summary>The line shown for a result: where the dish went, or that it stayed because nothing takes it.</summary>
-    /// <summary>The notice for a put-away result: a dish left in the stove is a warning, one put away is not.</summary>
-    public static DishNote Note(Stored stored, bool isChinese) => new(Describe(stored, isChinese), stored is Stored.Stays);
+    /// <summary>
+    /// The notice for a put-away result: a dish left in the stove is a warning, one put away is not. A stove still holding
+    /// a dish takes nothing from its queue, so when dishes are queued there the warning says the queue waits for it.
+    /// </summary>
+    public static DishNote Note(Stored stored, bool isQueued, bool isChinese)
+    {
+        var text = Describe(stored, isChinese);
 
+        if (stored is Stored.Stays && isQueued) text += Texts.DishStaysQueue.Say(isChinese, (int)DishRetry.WaitSeconds);
+
+        return new DishNote(text, stored is Stored.Stays);
+    }
+
+    /// <summary>The line shown for a result: where the dish went, or why it stayed: nothing takes it, or all that do are full.</summary>
     public static string Describe(Stored stored, bool isChinese) => stored switch
     {
         Stored.Into into => Texts.DishStored.Say(isChinese, into.Dish.Name, into.Storage.Name),
-        Stored.Stays stays => Texts.DishStays.Say(isChinese, stays.Dish.Name),
+        Stored.Stays { Refused.Count: 0 } stays => Texts.DishStays.Say(isChinese, stays.Dish.Name),
+        Stored.Stays { Refused.Count: 1 } stays => Texts.DishStaysFull.Say(isChinese, stays.Dish.Name, stays.Refused[0]),
+        Stored.Stays stays => Texts.DishStaysAllFull.Say(isChinese, stays.Dish.Name, stays.Refused[0]),
         _ => throw new InvalidOperationException("unknown put away result"),
     };
 }

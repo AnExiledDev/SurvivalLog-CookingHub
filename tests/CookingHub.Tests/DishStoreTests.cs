@@ -25,9 +25,19 @@ public class DishStoreTests
 
         public IReadOnlyList<DishStorage> ShelvesFor(ReadyDish dish) => Shelves;
 
+        /// <summary>How many more dishes a storage has room for; a storage not listed has room for all.</summary>
+        public Dictionary<long, int> Room { get; } = new();
+
         public bool Move(ReadyDish dish, long toOwnerId)
         {
             if (Full.Contains(toOwnerId)) return false;
+
+            if (Room.TryGetValue(toOwnerId, out var room))
+            {
+                if (room == 0) return false;
+
+                Room[toOwnerId] = room - 1;
+            }
 
             Placed[dish.InstanceId] = toOwnerId;
 
@@ -163,11 +173,78 @@ public class DishStoreTests
     [Fact]
     public void A_dish_put_away_is_good_news_and_one_left_in_the_stove_is_a_warning()
     {
-        var into = DishStore.Note(new Stored.Into(PorkRice, new DishStorage(Fridge, "Fridge", new PutRank(0, 1), false)), isChinese: false);
-        var stays = DishStore.Note(new Stored.Stays(PorkRice), isChinese: false);
+        var into = DishStore.Note(new Stored.Into(PorkRice, new DishStorage(Fridge, "Fridge", new PutRank(0, 1), false)), isQueued: true, isChinese: false);
+        var stays = DishStore.Note(new Stored.Stays(PorkRice), isQueued: false, isChinese: false);
 
         Assert.Equal(new DishNote("Put Pork Rice away in Fridge.", false), into);
         Assert.True(stays.IsWarning);
-        Assert.StartsWith("Pork Rice stays in the stove", stays.Text);
+        Assert.Equal("Pork Rice stays in the stove: no storage is tagged for it.", stays.Text);
+    }
+
+    // A pot cooking several dishes at once leaves each as its own item in the stove (Furniture.SettleCookingResult adds
+    // one item per dish), and the pot takes nothing from its queue until all of them are out.
+    [Fact]
+    public void Every_dish_of_a_pot_that_cooked_several_is_put_away()
+    {
+        var game = new FakeDishes();
+        var pudding = new ReadyDish(9002, 2, "Fruit Pudding", Stove);
+        var juice = new ReadyDish(9003, 3, "Watermelon Juice", Stove);
+
+        game.Waiting.Add(pudding);
+        game.Waiting.Add(juice);
+        game.Shelves.Add(Tagged(Fridge, level: 0, specificity: 1));
+
+        var results = DishStore.PutAway(game, new DishRetry(), now: 100);
+
+        Assert.Equal(3, results.Count);
+        Assert.All(results, stored => Assert.IsType<Stored.Into>(stored));
+        Assert.Equal(new[] { PorkRice.InstanceId, pudding.InstanceId, juice.InstanceId }, game.Placed.Keys.OrderBy(id => id));
+        Assert.All(game.Placed.Values, owner => Assert.Equal(Fridge, owner));
+    }
+
+    // The fridge holds one more dish: the first goes in, the next goes to the storage after it, and the last, with every
+    // storage that takes it full, stays with a warning that names the full storage and says the queue waits.
+    [Fact]
+    public void When_storage_fills_up_the_rest_go_elsewhere_and_the_one_left_says_why_and_that_the_queue_waits()
+    {
+        var game = new FakeDishes();
+        var pudding = new ReadyDish(9002, 2, "Fruit Pudding", Stove);
+        var juice = new ReadyDish(9003, 3, "Watermelon Juice", Stove);
+
+        game.Waiting.Add(pudding);
+        game.Waiting.Add(juice);
+        game.Shelves.Add(Tagged(Fridge, level: 0, specificity: 2));
+        game.Shelves.Add(Tagged(Pantry, level: 0, specificity: 1));
+        game.Room[Fridge] = 1;
+        game.Room[Pantry] = 1;
+
+        var results = DishStore.PutAway(game, new DishRetry(), now: 100);
+
+        Assert.Equal(Fridge, game.Placed[PorkRice.InstanceId]);
+        Assert.Equal(Pantry, game.Placed[pudding.InstanceId]);
+        Assert.False(game.Placed.ContainsKey(juice.InstanceId));
+
+        var stays = Assert.IsType<Stored.Stays>(results[2]);
+
+        Assert.Equal(new[] { $"S{Fridge}", $"S{Pantry}" }, stays.Refused);
+
+        var note = DishStore.Note(stays, isQueued: true, isChinese: false);
+
+        Assert.True(note.IsWarning);
+        Assert.Equal($"Watermelon Juice stays in the stove: S{Fridge} and every other storage that takes it are full. The stove's queue waits until it is out, and it is tried again every 30 seconds.", note.Text);
+    }
+
+    [Fact]
+    public void A_dish_whose_one_storage_is_full_names_it()
+    {
+        var game = new FakeDishes();
+
+        game.Shelves.Add(Tagged(Fridge, level: 0, specificity: 1));
+        game.Full.Add(Fridge);
+
+        var stored = Assert.Single(DishStore.PutAway(game));
+
+        Assert.Equal($"Pork Rice stays in the stove: S{Fridge} is full.", DishStore.Describe(stored, isChinese: false));
+        Assert.Equal($"Pork Rice留在灶具里：S{Fridge}已满。", DishStore.Describe(stored, isChinese: true));
     }
 }

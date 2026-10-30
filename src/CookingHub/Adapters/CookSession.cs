@@ -146,7 +146,7 @@ internal sealed class CookSession
         {
             if (stored is Stored.Stays && !_toldStays.Add(stored.Dish.InstanceId)) continue;
 
-            var note = DishStore.Note(stored, IsChinese);
+            var note = DishStore.Note(stored, _queue.For(stored.Dish.StoveId).Count > 0, IsChinese);
 
             _log(note.Text);
             Toast(note);
