@@ -22,7 +22,7 @@ Cooking Hub covers what ProjectCook's dish preview does. Use one or the other, n
 
 ## Requirements
 
-- Survival Log 1.1.19611. Built for this version; a game update can break it until the mod is updated.
+- Survival Log 1.1.20151. Built for this version; a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Optional: [Stacking](https://www.nexusmods.com/survivallog/mods/74). Cooking Hub loads food Stacking made stackable one unit at a time, the way Stacking wants it. Without Stacking, nothing changes.
 - [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.11.0 or newer. Cooking Hub does not load without it. It shows Cooking Hub's messages as toasts and applies settings changed on the Mod Manager's Mods screen without a restart.

@@ -139,8 +139,11 @@ public static class QueueCook
     /// <summary>
     /// The recipe ids for several dishes in one pot, each dish's in turn. The game matches the ids in order and takes
     /// each match's food out of what is left (Furniture.ValidateClientRecipeIds), so a dish listed twice is cooked twice.
+    /// Exact dishes go first: a food-type dish takes the first food of each type it finds, which could be the very food
+    /// an exact dish needs.
     /// </summary>
-    public static IReadOnlyList<int> StartIds(Cookbook book, IReadOnlyList<Recipe> recipes) => recipes.SelectMany(recipe => StartIds(book, recipe)).ToList();
+    public static IReadOnlyList<int> StartIds(Cookbook book, IReadOnlyList<Recipe> recipes) =>
+        recipes.OrderBy(recipe => recipe.IsExact ? 0 : 1).SelectMany(recipe => StartIds(book, recipe)).ToList();
 
     /// <summary>The dishes as one name: "Watermelon Juice x3", or several names in queue order.</summary>
     public static string Names(IReadOnlyList<Recipe> recipes, bool isChinese) =>

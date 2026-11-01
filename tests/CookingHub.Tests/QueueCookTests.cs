@@ -268,6 +268,22 @@ public class QueueCookTests
         Assert.Equal(new[] { PorkRice, StirFry, FancyStirFry }, Assert.Single(game.Started).RecipeIds);
     }
 
+    // Stir Fry takes the first grain and meat it finds, which could be Pork Rice's own Rice; started first, Pork Rice
+    // would find its food gone and the game would drop it.
+    [Fact]
+    public void An_exact_dish_is_started_before_a_food_type_dish_queued_ahead_of_it()
+    {
+        // The Wheat spoils first, so Stir Fry is planned with it and the Rice is left for Pork Rice.
+        var game = new FakeGame { IsStoveOpen = false, Level = Core.Kitchen.ShippedMultiPotLevel, Stock = { S(1, Rice, hours: 90), S(2, Pork, hours: 40), S(3, Wheat, hours: 10), S(4, Pork, hours: 40) } };
+
+        game.AddIdle(Kitchen, "Kitchen Stove");
+
+        var turn = Assert.Single(Run(game, CookQueue.Empty.Add(Kitchen, StirFry).Add(Kitchen, PorkRice)));
+
+        Assert.Equal(new[] { StirFry, PorkRice }, turn.RecipeIds);
+        Assert.Equal(new[] { PorkRice, StirFry, FancyStirFry }, Assert.Single(game.Started).RecipeIds);
+    }
+
     [Fact]
     public void The_open_stove_is_filled_with_every_dish_that_fits_for_the_page_to_start()
     {
