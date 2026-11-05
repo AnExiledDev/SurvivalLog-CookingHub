@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3
+
+- **Warning:** now uses Exiled's Toolkit for its shared parts, so it needs Exiled's Toolkit 0.19.0 or newer. Update the Toolkit first.
+- Made for Survival Log 1.1.20719.
+
 ## 0.9.2
 
 - Fixed for the 1.1.20719 game update: a pot the cooking queue starts while the stove's screen is closed now cooks as long as the game's own Cook button would make it cook. In Individual mode the game times a pot of several dishes differently from its first dish alone, and the queue now does the same.

@@ -1,6 +1,6 @@
-// Just enough of Root.html and the game's HUD page (UI/CoreUI/CoreUI1.html) for page.js to run in Jint: the root
-// document with its page iframes, the vuplex bridge, and clicks and other events that bubble. Test code only; nothing
-// here ships.
+// Just enough of Root.html and the game's HUD page (UI/CoreUI/CoreUI1.html) for page.js and Exiled's Toolkit's page
+// API (api.js) to run in Jint: the root document with its page iframes, the vuplex bridge, and clicks and other events
+// that bubble. Test code only; nothing here ships.
 var window = this;
 
 var location = { protocol: 'https:', href: 'https://game.local/Root.html' };
@@ -13,7 +13,7 @@ function setInterval(callback) {
   return intervals.length;
 }
 
-// One run of every interval the script set, which is how its 400 ms page check runs.
+// One run of every interval the scripts set, which is how the Toolkit's 250 ms page check runs.
 function poll() {
   intervals.slice().forEach(function (callback) { callback(); });
 }
@@ -254,11 +254,13 @@ function documentOf(element) {
 }
 
 var FakeDocument = class {
-  constructor() {
+  // href is the page's address; the Toolkit's page check never hands over a document still at about:blank.
+  constructor(href) {
     this.head = new FakeElement('head');
     this.body = new FakeElement('body');
     this.head.ownerRoot = this;
     this.body.ownerRoot = this;
+    this.defaultView = { location: { href: href || 'about:blank' } };
     // Listeners on the document itself: heard while an event travels down (captures) or after it bubbled up.
     this.listeners = {};
     this.captures = {};
@@ -339,7 +341,7 @@ function openHud() {
   var column = new FakeElement('div');
 
   frame.src = 'https://game.local/UI/CoreUI/CoreUI1.html';
-  frame.contentDocument = new FakeDocument();
+  frame.contentDocument = new FakeDocument(frame.src);
   column.className = 'vertical-tools';
   column.appendChild(new FakeElement('button'));
   frame.contentDocument.body.appendChild(column);
@@ -361,7 +363,7 @@ function openCooking(recipeIds) {
   var tip = new FakeElement('div');
 
   frame.src = 'https://game.local/UI/Cooking/Cooking.html';
-  frame.contentDocument = new FakeDocument();
+  frame.contentDocument = new FakeDocument(frame.src);
   frame.contentWindow = {
     State: {},
     // The page fits itself to the window on resize; each one sent to it is counted here.

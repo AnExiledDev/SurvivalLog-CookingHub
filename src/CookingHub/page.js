@@ -1,10 +1,14 @@
 // Cooking Hub's web half. Runs in Root.html, the document every game page iframe sits in. Adds tabs, food and odds to
-// the game's own cooking screen. Talks to the plugin through
-// vuplex.postMessage("slmod|cookinghub|<verb>") and is driven by window.__slcookinghub.
+// the game's own cooking screen. Talks to the plugin through Exiled's Toolkit's page API
+// (etk.send("slmod|cookinghub|", "<verb>")) and is driven by window.__slcookinghub.
 (function () {
   if (window.__slcookinghub) return;
 
   var PREFIX = 'slmod|cookinghub|';
+  // The name the plugin's own UI size setting is set under in the Toolkit.
+  var UI_SIZE_NAME = 'CookingHub';
+  // The game's cooking screen, by its iframe's address.
+  var COOKING_PAGE = /Cooking\.html/;
   var STATION_STYLE_ID = 'ch-station-style';
   var NUDGES_ID = 'ch-nudges';
   var BUSY_TIMEOUT_MS = 5000;
@@ -27,13 +31,12 @@
   var countsMemo = { key: '', counts: null };
   var isBusy = false;
   var busyTimer = 0;
-  var hasReportedPageAccess = false;
   var hasReportedOddsDrawn = false;
-  // Root.html's iframes as a live list, held once instead of searched for on every page check.
-  var frames = document.getElementsByTagName('iframe');
-  // Something may still be drawn on a cooking screen; while nothing is and there is nothing to draw, a page check
-  // does nothing at all.
-  var isAnyDrawn = false;
+  // The Toolkit's page API (window.ExiledToolkit). The game can run its script after this one, so this stays null
+  // until it has; the cooking screen check and the messages to the plugin start then.
+  var etk = null;
+  // The Toolkit's check of the game's cooking screen, which hands each one shown to patchPage.
+  var cookingWatch = null;
   // The words the plugin last handed over; new ones (the game's language changed) draw everything again.
   var wordsSeen = window.__slcookinghubWords;
   var wordsVersion = 0;
@@ -48,10 +51,9 @@
     return text;
   }
 
+  // Through the Toolkit's bridge. Nothing goes before its page API is there; the page says it is ready once it is.
   function send(message) {
-    try {
-      if (window.vuplex) window.vuplex.postMessage(PREFIX + message);
-    } catch (e) {}
+    if (etk) etk.send(PREFIX, message);
   }
 
   // One press at a time: a double click would otherwise move food twice. Every press is answered by a status line,
@@ -81,22 +83,6 @@
     return node;
   }
 
-  // Hands a panel to Exiled's Toolkit to be drawn at the player's UI size. Before the Toolkit's script has loaded it
-  // waits in a list the Toolkit reads; without the Toolkit nothing happens.
-  function uiSize(node, options) {
-    options = Object.assign({ mod: 'CookingHub' }, options);
-    var toolkit = window.ExiledUi;
-
-    if (toolkit) {
-      toolkit.size(node, options);
-      return;
-    }
-
-    var waiting = window.__exiledUiWait = window.__exiledUiWait || [];
-    waiting.push([node, options]);
-    if (waiting.length > 32) waiting.shift();
-  }
-
   // The recipe book panel, which holds the tabs and every view, is drawn at the UI size as far as the whole cooking
   // screen still fits the window at the page's own size, so the game never draws its own panels smaller for it. The
   // page fits itself to the window on resize, so it is told after each new zoom. Handed over once per panel.
@@ -108,7 +94,8 @@
     if (!screen) return;
 
     panel.__chSized = true;
-    uiSize(panel, {
+    etk.size(panel, {
+      mod: UI_SIZE_NAME,
       fit: screen,
       pageFits: true,
       onZoom: function () { win.dispatchEvent(new win.Event('resize')); }
@@ -155,7 +142,7 @@
 
     overlay = next;
     overlayVersion++;
-    patchPagesSafely();
+    refreshPages();
   }
 
   // A book row the plugin sends as its recipe id alone is the row this page already has. Should the page not have it
@@ -184,39 +171,22 @@
 
   // ---------- game pages ----------
 
-  // The cooking screen is a same-origin iframe, so its document can be reached from here; polled because the game
-  // creates and drops that iframe whenever it likes, and redraws the forecast cards on its own.
-  function patchPages() {
+  // The cooking screen is a same-origin iframe, so its document can be reached from here. The Toolkit hands it over at
+  // every check because the game creates and drops that iframe whenever it likes, and redraws the forecast cards on
+  // its own. Once a screen has nothing to show and was cleared, a check does nothing at all on it.
+  function patchPage(doc, frame) {
     noticeWords();
 
-    if (!overlay.show && !isAnyDrawn) return;
+    if (!overlay.show && !doc.__chDrawn) return;
 
-    var isAllReached = true;
+    drawStation(doc, frame.contentWindow);
+    drawOdds(doc, frame.contentWindow);
+    doc.__chDrawn = overlay.show;
+  }
 
-    for (var i = 0; i < frames.length; i++) {
-      var src = frames[i].src || '';
-
-      if (!/Cooking\.html/.test(src)) continue;
-
-      var doc = null;
-
-      try {
-        doc = frames[i].contentDocument;
-      } catch (e) {}
-
-      if (!doc) {
-        if (!hasReportedPageAccess) send('diag|cannot reach a game page document (root ' + location.protocol + ', iframe ' + src + ')');
-        hasReportedPageAccess = true;
-        isAllReached = false;
-        continue;
-      }
-
-      drawStation(doc, frames[i].contentWindow);
-      drawOdds(doc, frames[i].contentWindow);
-    }
-
-    // With nothing to show, every screen reached was just cleared.
-    isAnyDrawn = overlay.show || !isAllReached;
+  // What the page draws from changed: every cooking screen shown is drawn now rather than at the next check.
+  function refreshPages() {
+    if (cookingWatch) cookingWatch.refresh();
   }
 
   // The words come over again whenever the game's language changes, and everything drawn in the old ones is drawn again.
@@ -229,21 +199,6 @@
     wordsVersion++;
     catVersion++;
     overlayVersion++;
-  }
-
-  function patchPagesSafely() {
-    try {
-      patchPages();
-    } catch (e) {}
-  }
-
-  function addPageStyle(doc, id, css) {
-    if (doc.getElementById(id)) return;
-
-    var style = doc.createElement('style');
-    style.id = id;
-    style.textContent = css;
-    (doc.head || doc.body).appendChild(style);
   }
 
   // ---------- the game's cooking screen ----------
@@ -329,7 +284,7 @@
       return;
     }
 
-    addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
+    etk.addStyle(doc, STATION_STYLE_ID, STATION_CSS);
     delegate(doc);
     doc.__chStation = true;
 
@@ -439,7 +394,7 @@
   function choose(change) {
     change();
     station.version++;
-    patchPagesSafely();
+    refreshPages();
   }
 
   // ---------- tabs and filters ----------
@@ -1249,7 +1204,7 @@
       return;
     }
 
-    addPageStyle(doc, STATION_STYLE_ID, STATION_CSS);
+    etk.addStyle(doc, STATION_STYLE_ID, STATION_CSS);
     delegate(doc);
     doc.__chOdds = true;
 
@@ -1439,8 +1394,14 @@
     return node;
   }
 
-  setInterval(patchPagesSafely, 250);
+  // Runs once the Toolkit's page API is there: at once when its script ran first, else when it runs. The plugin sends
+  // everything again when the page says it is ready, so that waits until a message can reach it.
+  function startWithToolkit(api) {
+    etk = api;
+    cookingWatch = etk.watchPages(COOKING_PAGE, patchPage, { everyCheck: true });
+    send('ready');
+  }
 
   window.__slcookinghub = { status: status, catalog: catalog, cooking: setCooking };
-  send('ready');
+  (window.ExiledToolkitReady = window.ExiledToolkitReady || []).push(startWithToolkit);
 })();

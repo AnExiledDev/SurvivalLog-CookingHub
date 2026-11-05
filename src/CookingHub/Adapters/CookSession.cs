@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using CookingHub.Core;
 using ExiledToolkit;
+using ExiledToolkit.Game;
+using ExiledToolkit.Web;
 
 namespace CookingHub.Adapters;
 
@@ -20,9 +22,10 @@ internal sealed class CookSession
 
     private readonly ICookGame _game;
     private readonly IDishGame _dishes;
-    private readonly WebPage _page;
+    private readonly CookPage _page;
     private readonly IKitchenWatch _watch;
     private readonly WebKeyboard _keyboard = new();
+    private readonly PageMailbox _messages = PageInbox.Listen(PageCommand.Prefix);
     private readonly Action<string> _log;
 
     private bool _isSpoilingFirst = true;
@@ -53,7 +56,7 @@ internal sealed class CookSession
     private readonly HashSet<long> _toldStays = new();
     private readonly DishRetry _dishRetry = new();
 
-    public CookSession(ICookGame game, IDishGame dishes, IKitchenWatch watch, WebPage page, Action<string> log)
+    public CookSession(ICookGame game, IDishGame dishes, IKitchenWatch watch, CookPage page, Action<string> log)
     {
         _game = game;
         _dishes = dishes;
@@ -76,11 +79,14 @@ internal sealed class CookSession
 
     public void Update()
     {
-        var now = Clock.Now;
+        var now = CookTicker.Now();
 
         _page.KeepInstalled(now);
 
-        while (PageMessages.TryTake(out var command)) HandleSafely(command);
+        while (_messages.TryTake(out var message))
+        {
+            if (PageCommand.Parse(message) is { } command) HandleSafely(command);
+        }
 
         _watch.AdvanceCatalog();
 
@@ -315,7 +321,7 @@ internal sealed class CookSession
 
         if (!pressed.IsDone || _book == null || _last.WatchedId is not { } stoveId || _last.For(stoveId) is not { } recipeId) return pressed;
 
-        AskToStart(stoveId, new[] { recipeId }, Clock.Now);
+        AskToStart(stoveId, new[] { recipeId }, CookTicker.Now());
 
         return _book.Recipes.TryGetValue(recipeId, out var recipe) ? new Pressed(true, Texts.Starting.Say(IsChinese, recipe.Name)) : pressed;
     }
@@ -478,7 +484,7 @@ internal sealed class CookSession
         }
 
         _page.Status(message, message == Texts.Failed.Pick(IsChinese) ? ToastKind.Error : ToastKind.Info);
-        Refresh(Clock.Now);
+        Refresh(CookTicker.Now());
     }
 
 }

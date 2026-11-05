@@ -748,4 +748,46 @@ public class PageScriptTests
 
         Assert.Equal("Fill it", page.Text("cookingPage().querySelectorAll('.book-item')[0].querySelector('.st-fill.ch-st').textContent"));
     }
+
+    // ===== Load order: the game can run Cooking Hub's script before the Toolkit's =====
+
+    /// <summary>
+    /// The plugin sends everything again when the page says it is ready, so the page says so only once the Toolkit's
+    /// bridge can carry it, and then once.
+    /// </summary>
+    [Fact]
+    public void Before_the_toolkit_loads_the_page_waits_and_says_ready_once_it_does()
+    {
+        var page = new PageScript(isToolkitFirst: false);
+
+        Assert.Equal(0, page.Readies);
+
+        page.LoadToolkit();
+
+        Assert.Equal(1, page.Readies);
+    }
+
+    /// <summary>Odds the plugin sent before the Toolkit's script ran are drawn on the open cooking screen as soon as it runs.</summary>
+    [Fact]
+    public void Odds_sent_before_the_toolkit_loads_are_drawn_once_it_does()
+    {
+        var game = Stocked();
+
+        game.Forecasts.Add(new Forecast(PorkRice, true, true));
+        game.Pot.Add(S(8, Rice, owner: Workbench));
+
+        var kitchen = game.Kitchen();
+        var page = new PageScript(isToolkitFirst: false);
+
+        page.Catalog(CatalogView.Write(Book));
+        page.OpenCooking(PorkRice);
+        page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: true));
+        page.Poll();
+
+        Assert.Equal(0, Count(page, "cookingPage().querySelectorAll('.ch-odds')"));
+
+        page.LoadToolkit();
+
+        Assert.Equal(1, Count(page, "cookingPage().querySelectorAll('.ch-odds')"));
+    }
 }

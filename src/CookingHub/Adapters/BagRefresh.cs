@@ -1,6 +1,6 @@
 using System;
+using ExiledToolkit.Game;
 using GameCore.HotUpdate.ReduxUI;
-using HarmonyLib;
 
 namespace CookingHub.Adapters;
 
@@ -21,20 +21,12 @@ internal static class BagRefresh
     private static Func<bool> _isScreenOpen = () => true;
     private static Action<string> _log = _ => { };
 
-    public static void Apply(Harmony harmony, Func<bool> isScreenOpen, Action<string> log)
+    public static void Apply(PatchKit hooks, Func<bool> isScreenOpen, Action<string> log)
     {
         _isScreenOpen = isScreenOpen;
         _log = log;
-
-        try
-        {
-            harmony.Patch(AccessTools.Method(typeof(Ac_Cooking_RefreshBag), nameof(Ac_Cooking_RefreshBag.SendAction)), prefix: new HarmonyMethod(typeof(BagRefresh), nameof(HoldWhileBatched)));
-            _isHooked = true;
-        }
-        catch (Exception ex)
-        {
-            log("could not hook the cooking screen's bag refresh, each food move refreshes it on its own: " + ex.Message);
-        }
+        _isHooked = hooks.Patch(typeof(BagRefresh), typeof(Ac_Cooking_RefreshBag), nameof(Ac_Cooking_RefreshBag.SendAction), prefix: nameof(HoldWhileBatched),
+            consequence: "each food move refreshes the cooking screen's bag on its own");
     }
 
     /// <summary>

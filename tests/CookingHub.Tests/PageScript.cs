@@ -1,24 +1,37 @@
 using CookingHub.Core;
+using ExiledToolkit.Web;
 using Jint;
 
 namespace CookingHub.Tests;
 
 /// <summary>
-/// page.js exactly as the plugin embeds it, run in Jint on top of FakePage.js (Root.html, the game's HUD page, its
-/// cooking screen and the vuplex bridge). The English words go first, as WebPage hands them over before its first call. The calls into the script are the ones WebPage makes, and what the script posts is parsed with the
-/// real PageCommand, so a test sees the commands the plugin would act on.
+/// page.js exactly as the plugin embeds it, run in Jint with Exiled's Toolkit's page API (api.js, from the Toolkit's
+/// source) on top of FakePage.js (Root.html, the game's HUD page, its cooking screen and the vuplex bridge). The
+/// English words go first, as CookPage hands them over before its first call. The calls into the script are the ones
+/// CookPage makes, and what the script posts is parsed with the real PageCommand, so a test sees the commands the
+/// plugin would act on.
 /// </summary>
 internal sealed class PageScript
 {
     private readonly Engine _engine = new();
 
-    public PageScript()
+    /// <param name="isToolkitFirst">
+    /// The game runs the Toolkit's script first, or with false Cooking Hub's first; then the Toolkit's runs only at
+    /// <see cref="LoadToolkit"/>.
+    /// </param>
+    public PageScript(bool isToolkitFirst = true)
     {
         _engine.Execute(Resource("CookingHub.Tests.FakePage.js"));
         _engine.Execute(PageWords.Script(isChinese: false));
+
+        if (isToolkitFirst) _engine.Execute(Resource("ExiledToolkit.api.js"));
+
         _engine.Execute(Resource("CookingHub.page.js"));
         Hear();
     }
+
+    /// <summary>The Toolkit's page API arriving after Cooking Hub's script.</summary>
+    public void LoadToolkit() => Run(Resource("ExiledToolkit.api.js"));
 
     /// <summary>Every command the script sent the plugin, its ready message and diag notes aside.</summary>
     public List<PageCommand> Sent { get; } = new();
@@ -39,7 +52,7 @@ internal sealed class PageScript
 
     public bool Is(string expression) => _engine.Evaluate($"!!({expression})").AsBoolean();
 
-    /// <summary>One run of the script's 400 ms page check.</summary>
+    /// <summary>One run of the Toolkit's 250 ms page check, which hands the cooking screen to the script.</summary>
     public void Poll() => Run("poll()");
 
     public void OpenHud() => Run("openHud()");

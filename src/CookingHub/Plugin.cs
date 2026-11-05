@@ -1,24 +1,36 @@
-using System.IO;
 using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using CookingHub.Adapters;
-using CookingHub.Core;
+using ExiledToolkit;
+using ExiledToolkit.Game;
+using ExiledToolkit.Kit;
 using HarmonyLib;
 
 namespace CookingHub;
 
 [BepInPlugin(Guid, "Cooking Hub", Version)]
-[BepInDependency(OptionalLive.ToolkitGuid, OptionalLive.ToolkitVersion)]
+[BepInDependency(ToolkitGuid, ToolkitVersion)]
 [BepInDependency(StackingGuid, BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.9.2";
+    private const string Version = "0.9.3";
+
+    /// <summary>Exiled's Toolkit: its shared helpers, toasts, live settings and UI size all come from it.</summary>
+    private const string ToolkitGuid = "com.dev.survivallog.exiledtoolkit";
+    private const string ToolkitVersion = ">=0.19.0";
+
     private const string StackingGuid = "com.dev.survivallog.stacking";
+    private const string LogFileName = "cooking-hub.log";
+
+    /// <summary>The name the page script hands its panels to the Toolkit's UI size with.</summary>
+    private const string UiSizeName = "CookingHub";
 
     public override void Load()
     {
-        OptionalUiSize.Bind(Config);
+        ModUiSize.Bind(Config, UiSizeName, description:
+            "How big Cooking Hub's tabs and the recipe book are drawn on the cooking screen, in percent, from 75 to 200. At 0 they follow the UI size set in Exiled's Toolkit (its UiScale). When the cooking screen would no longer fit the window, the book is drawn as big as still fits.\n" +
+            "烹饪界面上 Cooking Hub 的页签和菜谱书的显示大小（百分比），范围 75 到 200。设为 0 时跟随 Exiled's Toolkit 的界面大小设置（它的 UiScale）。烹饪界面放不进窗口时，菜谱书按仍能放下的最大尺寸显示。");
 
         var isSpoilingFirst = Config.Bind("General", "FillSpoilingFirst", true,
             "When true, Load and Repeat last fill the pot with the food closest to spoiling first. When false, they use the freshest food first.\n" +
@@ -35,22 +47,24 @@ public sealed class Plugin : BasePlugin
         var isLoggingToFile = Config.Bind("Diagnostics", "LogToFile", false, new BepInEx.Configuration.ConfigDescription(
             "When true, what Cooking Hub does is also written to BepInEx\\cooking-hub.log, which is kept between game starts. Turn it on when reporting a problem.\n" +
             "设为 true 时，Cooking Hub 的操作也会写入 BepInEx\\cooking-hub.log，该文件在重启游戏后保留。报告问题时再打开。", null, "ModManager.Advanced"));
-        var log = new CookLog(Log, Path.Combine(Paths.BepInExRootPath, "cooking-hub.log"));
-        var harmony = new Harmony(Guid);
+        var log = new ModLog(Log, LogFileName);
+
+        // Before the first line, since the file copy is on until the setting says otherwise.
+        LiveSettings.Watch(isLoggingToFile, isOn => log.IsFileOn = isOn);
+
+        var hooks = new PatchKit(new Harmony(Guid), log.Write);
         var game = new GameCooking(log.Write);
         var session = new CookSession(
             game,
             game,
             game,
-            new WebPage(log.Write),
+            new CookPage(log.Write),
             log.Write);
 
-        OptionalLive.Watch(isLoggingToFile, isOn => log.IsFileOn = isOn);
         log.Write($"===== Cooking Hub {Version} started");
-        PageMessages.Apply(harmony, log.Write);
-        BagRefresh.Apply(harmony, game.IsCookingScreenOpen, log.Write);
+        BagRefresh.Apply(hooks, game.IsCookingScreenOpen, log.Write);
 
-        OptionalLive.Watch(() =>
+        LiveSettings.Watch(() =>
         {
             session.UseSettings(isSpoilingFirst.Value, isShowingOdds.Value, isPuttingDishesAway.Value, isShowingUnlearned.Value);
             log.Write($"spoiling first {isSpoilingFirst.Value}, odds {isShowingOdds.Value}, put dishes away {isPuttingDishesAway.Value}, unlearned {isShowingUnlearned.Value}");

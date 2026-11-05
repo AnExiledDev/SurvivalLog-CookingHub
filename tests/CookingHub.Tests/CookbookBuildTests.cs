@@ -1,4 +1,5 @@
 using CookingHub.Core;
+using ExiledToolkit.Kit;
 using Xunit;
 using static CookingHub.Tests.FakeGame;
 

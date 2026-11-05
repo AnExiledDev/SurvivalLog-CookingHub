@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CookingHub.Core;
+using ExiledToolkit.Game;
+using ExiledToolkit.Kit;
+using ExiledToolkit.Web;
 using GameCore.HotUpdate;
 using GameCore.HotUpdate.Battle.Logic;
 using GameCore.HotUpdate.ReduxUI;
@@ -758,7 +761,7 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
 
     private static Recipe RecipeOf(ConfigManager config, Config_CookingRecipe row)
     {
-        var name = Translate(config, row.RecipeName) ?? NonEmpty(row.RecipeName_Local) ?? $"Recipe {row.ID}";
+        var name = GameNames.Translate(config, row.RecipeName) ?? GameNames.NonEmpty(row.RecipeName_Local) ?? $"Recipe {row.ID}";
         var outputs = new[] { row.FailItemID, row.NormalItemID, row.GoodItemID, row.PerfectItemID };
 
         return new Recipe(row.ID, name, Ints(row.SpecificItems), Ints(row.TagCombo), row.Tier, Ints(row.QualityMap), row.craft_level, row.show_level, row.CookTime, outputs, GroupOf(row.ID));
@@ -792,7 +795,7 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
 
         foreach (var row in rows.Values)
         {
-            if (row != null) types.Add(new FoodType(row.ID, Translate(config, row.Name) ?? NonEmpty(row.Name_Local) ?? $"Type {row.ID}", Icons().Resolve(NonEmpty(row.IT_Icon))));
+            if (row != null) types.Add(new FoodType(row.ID, GameNames.Translate(config, row.Name) ?? GameNames.NonEmpty(row.Name_Local) ?? $"Type {row.ID}", Icons().Resolve(GameNames.NonEmpty(row.IT_Icon))));
         }
 
         return types;
@@ -878,9 +881,9 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
     }
 
     private static string ItemName(ConfigManager config, Config_Item item) =>
-        Translate(config, item.ItemName) ?? NonEmpty(item.ItemName_Local) ?? NonEmpty(item.ItemName) ?? $"Item {item.ID}";
+        GameNames.ItemName(config, item) ?? $"Item {item.ID}";
 
-    private string? ItemIcon(Config_Item item) => Icons().Resolve(NonEmpty(item.WebIcon) ?? NonEmpty(item.Icon));
+    private string? ItemIcon(Config_Item item) => Icons().Resolve(GameNames.NonEmpty(item.WebIcon) ?? GameNames.NonEmpty(item.Icon));
 
     /// <summary>What eating the item restores, in the game's item tip order: satiety, morale, stamina, health, vitality.</summary>
     private static int[] Gives(Config_Item item) =>
@@ -976,7 +979,7 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
     {
         if (_icons != null) return true;
 
-        _iconScan ??= StartIconScan();
+        _iconScan ??= WebIcons.StartScan();
 
         if (!_iconScan.IsCompleted) return false;
 
@@ -990,29 +993,6 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
 
         return true;
     }
-
-    private static System.Threading.Tasks.Task<(IconIndex Icons, string Note)> StartIconScan()
-    {
-        try
-        {
-            return WebIcons.StartScan();
-        }
-        catch (Exception ex)
-        {
-            return System.Threading.Tasks.Task.FromResult((IconIndex.Empty, "no web icons, foods and dishes will show letters instead: " + ex.Message));
-        }
-    }
-
-    private static string? Translate(ConfigManager config, string? key)
-    {
-        if (string.IsNullOrEmpty(key)) return null;
-
-        var text = config.GetLocalTxt(key);
-
-        return string.IsNullOrEmpty(text) || text == key ? null : text;
-    }
-
-    private static string? NonEmpty(string? text) => string.IsNullOrWhiteSpace(text) ? null : text;
 
     private void ReportOnce(string operation, Exception ex)
     {
@@ -1066,7 +1046,7 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
 
             if (furniture == null || rows == null || !rows.ContainsKey(furniture.AgentConfigId)) return null;
 
-            return Translate(_config, rows[furniture.AgentConfigId]?.Name);
+            return GameNames.Translate(_config, rows[furniture.AgentConfigId]?.Name);
         }
     }
 }

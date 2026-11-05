@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using CookingHub.Core;
+using ExiledToolkit.Kit;
 using Xunit;
 
 namespace CookingHub.Tests;
