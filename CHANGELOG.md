@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2
+
+- Fixed for the 1.1.20719 game update: a pot the cooking queue starts while the stove's screen is closed now cooks as long as the game's own Cook button would make it cook. In Individual mode a pot of several dishes can take longer than its first dish, and it now does.
+- In a pot of several dishes, an exact dish now starts before a food-type dish, so the food-type dish no longer takes the very food the exact dish needs.
+- Made for Survival Log 1.1.20719.
+
 ## 0.9.1
 
 - **Warning:** needs Exiled's Toolkit 0.11.0 or newer. Update the Toolkit first.

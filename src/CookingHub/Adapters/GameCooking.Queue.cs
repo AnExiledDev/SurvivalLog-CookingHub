@@ -19,6 +19,9 @@ internal sealed partial class GameCooking
     private const int HotPotMode = 1;
     private const int UsesPowerType = 2;
 
+    /// <summary>The GameCounter that holds the player's dish mode: 0 Mix, 1 Individual.</summary>
+    private const string DishPriorityCounter = "cooking.dishPriority";
+
     public IReadOnlyList<IdleStove> IdleStoves()
     {
         try
@@ -57,10 +60,72 @@ internal sealed partial class GameCooking
             return false;
         }
 
-        furniture.OnCookingStart(new CookingStartData { RecipeIds = ids, CookDuration = recipe.CookTime / (cook.SpeedRate > 0 ? cook.SpeedRate : 1f) });
+        var duration = CookTime.Pick(GameCookTime(game.Value.Config, game.Value.Role, furniture, items, cook, matched!), CookTime.FirstDish(recipe.CookTime, cook.SpeedRate));
+
+        furniture.OnCookingStart(new CookingStartData { RecipeIds = ids, CookDuration = duration });
 
         return cooking.IsCooking;
     });
+
+    /// <summary>
+    /// The time the screen's Cook button would give this pot (Reducer_Web_Cooking.CalcCookDuration). The game times a pot
+    /// from its own plan of the bench, so the plan is made the way the screen makes it: a stand-in cooking screen state
+    /// holds the pot's food, the player's cooking level and dish mode, and the stove's recipes. Null when the plan is not
+    /// the dishes being started, or the game could not be asked; the pot then cooks for its first dish's time.
+    /// </summary>
+    private float? GameCookTime(ConfigManager config, LeadingRole role, Furniture furniture, ItemManager items, Config_FurnitureCook cook, Il2CppSystem.Collections.Generic.List<int> starting)
+    {
+        try
+        {
+            if (AgentTools.GetAgentComponent<CookingRecordComponent>(role) is not { } record) return null;
+
+            var state = new State_Web_Cooking
+            {
+                CookingLevel = record.CookingLevel,
+                DishPriority = GameCounter.GetCounter(DishPriorityCounter),
+                TagTierFloorRank = Furniture.GetCookTagTierFloorRank(),
+            };
+
+            Reducer_Web_Cooking.BuildAllowedRecipeSet(cook, state.AllowedRecipeSet);
+
+            var held = items.GetItemDataList(furniture.InstanceId);
+
+            for (var i = 0; held != null && i < held.Count; i++)
+            {
+                if (held[i] is not { ItemCount: > 0 } item) continue;
+
+                var food = new Data_Web_Cooking_Item();
+
+                food.ItemId.Value = item.InstanceId;
+                food.ConfigId.Value = item.ItemConfigId;
+                food.Count.Value = item.ItemCount;
+                food.SubCategory.Value = ItemConfig(config, item.ItemConfigId)?.SubCategory ?? 0;
+                state.WorkbenchItems.Add(food);
+            }
+
+            var plan = Reducer_Web_Cooking.PreMatchRecipes(state, out _);
+            var planned = new List<int>();
+            var started = new List<int>();
+
+            for (var i = 0; plan != null && i < plan.Count; i++) planned.Add(plan[i].Item1);
+            for (var i = 0; i < starting.Count; i++) started.Add(starting[i]);
+
+            if (planned.Count == 0 || !planned.OrderBy(id => id).SequenceEqual(started.OrderBy(id => id)))
+            {
+                _log($"stove {furniture.InstanceId} cooks for its first dish's time: the game plans recipes {string.Join(",", planned)} for a pot of {string.Join(",", started)}");
+
+                return null;
+            }
+
+            return Reducer_Web_Cooking.CalcCookDuration(state, cook, plan);
+        }
+        catch (Exception ex)
+        {
+            ReportOnce("cook time", ex);
+
+            return null;
+        }
+    }
 
     private List<IdleStove> ReadIdleStoves()
     {
