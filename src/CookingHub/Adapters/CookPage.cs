@@ -7,7 +7,7 @@ using ExiledToolkit.Web;
 namespace CookingHub.Adapters;
 
 /// <summary>
-/// The mod's half that lives in the game's web UI: page.js, run in the root document the game's own pages sit in. It
+/// The mod's half that lives in the game's web UI: page.js, run in the root document the game's pages sit in. It
 /// draws the tabs, food and odds on the game's cooking screen. The web view can reload at any time and lose the
 /// script, so Exiled's Toolkit checks for it every couple of seconds and the session puts it back when the page says
 /// it is missing.
@@ -57,6 +57,6 @@ internal sealed class CookPage
     /// <summary>Names and icons of food types, items and recipes; the views refer to them by id only.</summary>
     public bool Catalog(string catalogJson) => _page.Call($"catalog({catalogJson})");
 
-    /// <summary>The odds and nudges drawn on the game's own cooking screen, or a view with show false to clear them.</summary>
+    /// <summary>The odds and nudges drawn on the game's cooking screen, or a view with show false to clear them.</summary>
     public bool Cooking(string overlayJson) => _page.Call($"cooking({overlayJson})");
 }

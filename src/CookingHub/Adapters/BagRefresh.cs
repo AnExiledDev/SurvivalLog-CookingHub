@@ -67,7 +67,7 @@ internal static class BagRefresh
         return new Batch();
     }
 
-    /// <summary>The game's own refresh goes ahead as if the mod were not here unless a batch is open.</summary>
+    /// <summary>The game's refresh goes ahead as if the mod were not here unless a batch is open.</summary>
     private static bool HoldWhileBatched()
     {
         _isChanged = true;

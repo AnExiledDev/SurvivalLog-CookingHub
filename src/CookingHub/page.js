@@ -1,5 +1,5 @@
 // Cooking Hub's web half. Runs in Root.html, the document every game page iframe sits in. Adds tabs, food and odds to
-// the game's own cooking screen. Talks to the plugin through Exiled's Toolkit's page API
+// the game's cooking screen. Talks to the plugin through Exiled's Toolkit's page API
 // (etk.send("slmod|cookinghub|", "<verb>")) and is driven by window.__slcookinghub.
 (function () {
   if (window.__slcookinghub) return;
@@ -203,7 +203,7 @@
 
   // ---------- the game's cooking screen ----------
 
-  // Classes the game's own stylesheet already gives these pages (Cooking.html): its colours, its recipe rows.
+  // Classes the game's stylesheet already gives these pages (Cooking.html): its colours, its recipe rows.
   var STATION_CSS = [
     '.right-panel{width:400px!important}',
     '.cooking-system{min-height:780px!important}.recipe-section{min-height:300px!important}.prediction-list{max-height:none!important}',
@@ -353,7 +353,7 @@
   }
 
   // One listener per kind on each game page document, set once. Clicks are heard while they travel down, so a click on
-  // one of our buttons stops before the row under it, and the game's own handlers there, can take it too. Tooltips
+  // one of our buttons stops before the row under it, and the game's handlers there, can take it too. Tooltips
   // follow the cursor from one marked row to the next.
   function delegate(doc) {
     if (doc.__chDelegated) return;
@@ -553,7 +553,7 @@
 
     if (rows.length !== recipes.length) return;
 
-    // Sorting moves rows by flex order, never in the page, so the game's own row counting still holds.
+    // Sorting moves rows by flex order, never in the page, so the game's row counting still holds.
     var order = rows.map(function (row, i) { return i; });
 
     if (isSorted) {
@@ -643,7 +643,7 @@
     return (words + ' ' + food.join(' ')).toLowerCase().indexOf(needle) >= 0;
   }
 
-  // Where the food is or what is missing, a bar of the odds, the Perfect chance, Load when the game's own fill would
+  // Where the food is or what is missing, a bar of the odds, the Perfect chance, Load when the game's fill would
   // refuse (its rows only count the bag) but the player's storages cover the dish, or the pot can take the dish once
   // more, and Queue beside it. Food set aside
   // for queued dishes does not count, and a dish only it covers says so instead.
@@ -947,7 +947,7 @@
     });
   }
 
-  // A row in the game's own recipe row style: icon, then name over a second line.
+  // A row in the game's recipe row style: icon, then name over a second line.
   function viewRow(doc, thing, name, second, stateClass) {
     var row = make(doc, 'div', 'book-item' + (stateClass ? ' ' + stateClass : ''));
     var iconBox = make(doc, 'div', 'book-ico');
@@ -1174,7 +1174,7 @@
     });
   }
 
-  // Repeat last asks for the game's own Cook button once its pot is filled: the plugin raises the start token for a
+  // Repeat last asks for the game's Cook button once its pot is filled: the plugin raises the start token for a
   // few seconds, and only while the pot forecasts that dish. The button also stops a cooking stove, so it is pressed
   // only while nothing cooks, and once per token.
   function pressStart(doc, win) {

@@ -40,7 +40,7 @@ public sealed record Recipe(
     /// <summary>Dark food, what a pot that matches nothing turns into: every tier is the same dish, so it has no odds.</summary>
     public bool HasOdds => Id != DarkFood && QualityMap.Count >= 4;
 
-    /// <summary>The game's own unlock rule (CookingRecordComponent.IsRecipeCraftUnlocked).</summary>
+    /// <summary>The game's unlock rule (CookingRecordComponent.IsRecipeCraftUnlocked).</summary>
     public bool IsUnlocked(int level, IReadOnlyCollection<int> craftUnlocked) => CraftLevel > 0 ? level >= CraftLevel : craftUnlocked.Contains(Id);
 }
 
@@ -69,7 +69,7 @@ public sealed record Cookbook(IReadOnlyDictionary<int, Item> Items, IReadOnlyDic
 /// One stack of food the player can reach, in their bag or a home storage. Count is the stack size. For an item used up
 /// a little at a time (IsByUse) Count is its uses left: the game splits one use off for each that goes in the pot, and
 /// a recipe counts each pot item once, so every use is a unit of its own and takes a pot slot. In the pot such an item
-/// counts as 1. HoursLeft is null for food that keeps; IsSpoiled is the game's own test, so a spoiled stack costs the
+/// counts as 1. HoursLeft is null for food that keeps; IsSpoiled is the game's test, so a spoiled stack costs the
 /// pot its fresh bonus.
 /// </summary>
 public sealed record Stack(long InstanceId, int ItemId, int Count, long OwnerId, string Place, double? HoursLeft, bool IsSpoiled, bool IsByUse = false);

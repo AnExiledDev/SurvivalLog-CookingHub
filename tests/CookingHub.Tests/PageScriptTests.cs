@@ -103,7 +103,7 @@ public class PageScriptTests
         Assert.Contains("Chest", page.Text("cookingPage().querySelectorAll('.book-item')[0].textContent"));
         Assert.Equal(1, Count(page, "cookingPage().querySelectorAll('.book-item')[0].querySelectorAll('.st-fill.ch-st')"));
         Assert.True(page.Is("cookingPage().querySelectorAll('.book-item')[0].classList.contains('ch-storage')"));
-        Assert.False(page.Is("cookingPage().querySelectorAll('.book-item')[1].classList.contains('ch-storage')"), "a row the game already fills keeps the game's own button");
+        Assert.False(page.Is("cookingPage().querySelectorAll('.book-item')[1].classList.contains('ch-storage')"), "a row the game already fills keeps the game's button");
 
         page.Click("cookingPage().querySelectorAll('.book-item')[0].querySelector('.st-fill.ch-st')");
 

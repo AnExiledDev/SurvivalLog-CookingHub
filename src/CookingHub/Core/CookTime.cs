@@ -1,7 +1,7 @@
 namespace CookingHub.Core;
 
 /// <summary>
-/// How long a pot started with its cooking screen closed cooks. The game's own rule (Reducer_Web_Cooking.CalcCookDuration)
+/// How long a pot started with its cooking screen closed cooks. The game's rule (Reducer_Web_Cooking.CalcCookDuration)
 /// is asked first, so a pot of several dishes in Individual mode takes as long as the Cook button would give it. When
 /// that rule cannot be asked, the pot cooks for its first dish's time, which is what Mix mode gives anyway.
 /// </summary>

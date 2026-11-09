@@ -149,7 +149,7 @@ public static class QueueCook
     public static string Names(IReadOnlyList<Recipe> recipes, bool isChinese) =>
         string.Join(isChinese ? "\u3001" : ", ", recipes.GroupBy(recipe => recipe.Id).Select(group => group.Count() > 1 ? $"{group.First().Name} x{group.Count()}" : group.First().Name));
 
-    /// <summary>The checks Load makes, and the game's own: the dish is learned, the stove cooks it, and its food fits the pot.</summary>
+    /// <summary>The checks Load makes, and the game's: the dish is learned, the stove cooks it, and its food fits the pot.</summary>
     private static bool CanCook(Kitchen kitchen, Stove stove, Recipe recipe, IReadOnlyList<Take> takes) =>
         recipe.Id != Recipe.DarkFood
         && recipe.IsUnlocked(kitchen.Level, kitchen.CraftUnlocked)

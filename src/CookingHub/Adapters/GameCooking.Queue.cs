@@ -12,7 +12,7 @@ namespace CookingHub.Adapters;
 
 /// <summary>
 /// The stoves a queue can cook on, and starting one with its cooking screen closed. A stove is started the way the
-/// screen's Cook button ends (Reducer_Web_Cooking.RA_StartCook sends Furniture.OnCookingStart), after the game's own
+/// screen's Cook button ends (Reducer_Web_Cooking.RA_StartCook sends Furniture.OnCookingStart), after the game's
 /// recipe check has said which dish the pot makes, so a pot it does not recognise is never started as dark food.
 /// </summary>
 internal sealed partial class GameCooking

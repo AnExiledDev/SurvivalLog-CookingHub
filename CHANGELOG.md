@@ -7,7 +7,7 @@
 
 ## 0.9.2
 
-- Fixed for the 1.1.20719 game update: a pot the cooking queue starts while the stove's screen is closed now cooks as long as the game's own Cook button would make it cook. In Individual mode the game times a pot of several dishes differently from its first dish alone, and the queue now does the same.
+- Fixed for the 1.1.20719 game update: a pot the cooking queue starts while the stove's screen is closed now cooks as long as the game's Cook button would make it cook. In Individual mode the game times a pot of several dishes differently from its first dish alone, and the queue now does the same.
 - Made for Survival Log 1.1.20719.
 
 ## 0.9.1
@@ -120,7 +120,7 @@
 
 ## 0.5.0
 
-- The Cooking Hub window, its pot button on the HUD and its K key are gone. Everything now happens on the game's own cooking screen: Cook now lists what the stove can make from your food, and Pantry lists all your food.
+- The Cooking Hub window, its pot button on the HUD and its K key are gone. Everything now happens on the game's cooking screen: Cook now lists what the stove can make from your food, and Pantry lists all your food.
 - The queue is gone for now: there is no Queued tab and no Load next. You can delete `BepInEx\config\CookingHub.queue.txt`.
 - FillSpoilingFirst and ShowOdds are set in the cfg file or on the Mod Manager's Mods screen.
 

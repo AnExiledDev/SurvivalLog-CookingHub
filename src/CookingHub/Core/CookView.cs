@@ -18,12 +18,12 @@ public sealed record StationExtras(int? Last, int Start, IReadOnlyList<int> Queu
 }
 
 /// <summary>
-/// The JSON page.js draws on the game's own cooking screen. Names and icons live in the catalog, sent once (CatalogView).
+/// The JSON page.js draws on the game's cooking screen. Names and icons live in the catalog, sent once (CatalogView).
 /// </summary>
 public static class CookView
 {
     /// <summary>
-    /// What page.js draws on the game's own cooking screen: the stove line, each recipe book row's food and odds, the
+    /// What page.js draws on the game's cooking screen: the stove line, each recipe book row's food and odds, the
     /// pantry and Repeat last, and the odds of each forecast line, keyed by recipe id so the page can check it
     /// is drawing on the lines C# read, with the nudges. The book lists only recipes the game itself shows, unless
     /// isShowingUnlearned asks for the rest too, each marked unlearned with the cooking level the tables show it at.

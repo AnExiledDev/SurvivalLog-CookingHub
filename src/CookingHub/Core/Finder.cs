@@ -20,7 +20,7 @@ public sealed record Need(int Id, bool IsType, int Want, int Have)
 /// <summary>
 /// A dish the player could aim for. Tag recipes that want the same food types are one dish: which of them the pot makes
 /// depends on the ingredients, so Varies is true and the dish goes by its plain (tier 2) recipe. IsUnlearned marks a
-/// recipe the game's own book does not list yet, shown only when the player asks to see those too.
+/// recipe the game's book does not list yet, shown only when the player asks to see those too.
 /// </summary>
 public sealed record Dish(Recipe Recipe, bool Varies, Readiness State, IReadOnlyList<Need> Needs, bool IsNew, bool UsesSpoiling, double? Perfect, bool IsUnlearned = false)
 {

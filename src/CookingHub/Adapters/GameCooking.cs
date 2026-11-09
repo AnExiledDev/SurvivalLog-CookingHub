@@ -64,7 +64,7 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
 
     /// <summary>
     /// The tables a read looks rows up in, kept with the config they came from (held, so its address is never reused):
-    /// each field read makes a new wrapper, and the game's own lookups log an error for every missing row.
+    /// each field read makes a new wrapper, and the game's lookups log an error for every missing row.
     /// </summary>
     private ConfigManager? _tablesConfig;
     private Il2CppSystem.Collections.Generic.Dictionary<int, Config_Item>? _itemTable;
@@ -613,7 +613,7 @@ internal sealed partial class GameCooking : ICookGame, IKitchenWatch
         _recipeTable = config._Config_CookingRecipe_Dict;
     }
 
-    /// <summary>A row of the item table, or null. The game's own Get_Config_Item logs an error for every missing row.</summary>
+    /// <summary>A row of the item table, or null. The game's Get_Config_Item logs an error for every missing row.</summary>
     private Config_Item? ItemConfig(ConfigManager config, int itemId)
     {
         UseTables(config);

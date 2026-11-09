@@ -9,7 +9,7 @@ using ExiledToolkit.Web;
 namespace CookingHub.Adapters;
 
 /// <summary>
-/// Cooking Hub's game side, run once a frame: the catalog and odds page.js draws on the game's own cooking screen, the
+/// Cooking Hub's game side, run once a frame: the catalog and odds page.js draws on the game's cooking screen, the
 /// presses the page asks for, and putting finished dishes away. Page messages arrive on the web view's thread, so they
 /// are queued and handled here, in this frame.
 /// </summary>
@@ -227,7 +227,7 @@ internal sealed class CookSession
     }
 
     /// <summary>
-    /// Asks the page to press the game's own Cook button for the open stove: the start token counts up once per filled
+    /// Asks the page to press the game's Cook button for the open stove: the start token counts up once per filled
     /// pot, and stays up only while the pot forecasts one of these dishes, until the stove cooks or a few seconds pass.
     /// </summary>
     private void AskToStart(long stoveId, IReadOnlyList<int> recipeIds, float now)
@@ -314,7 +314,7 @@ internal sealed class CookSession
         return pressed;
     }
 
-    /// <summary>Fills the pot for the dish this stove last started, then asks the page to press the game's own Cook button.</summary>
+    /// <summary>Fills the pot for the dish this stove last started, then asks the page to press the game's Cook button.</summary>
     private Pressed Repeat()
     {
         var pressed = CookRun.Repeat(_game, _last, _isSpoilingFirst, IsChinese, _queue);

@@ -219,7 +219,7 @@ public static class CookRun
     /// <summary>
     /// The stacks that fill a pot for the recipe, or null when fresh food runs short. An exact recipe takes its own items;
     /// a tag recipe takes any cookable food of each type. Each want takes stacks until it has enough, so a stack bigger
-    /// than the want goes in whole, as it does when the player clicks the recipe in the game's own panel. Spoiling first
+    /// than the want goes in whole, as it does when the player clicks the recipe in the game's panel. Spoiling first
     /// uses up what goes off soonest; otherwise the freshest goes first.
     /// </summary>
     public static IReadOnlyList<Take>? Plan(Kitchen kitchen, Recipe recipe, bool isSpoilingFirst)
