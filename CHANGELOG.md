@@ -1,32 +1,37 @@
 # Changelog
 
+## 0.9.6
+
+- Clearer wording in the settings, the messages and the notes on the cooking screen.
+- Made for Survival Log 1.1.20719.
+
 ## 0.9.5
 
-- Fixed: with odds on, the cooking screen changed height with every ingredient and could push Start cooking off the bottom of the game window. The dish list now keeps one height and scrolls. The suggestions sit under it, so each dish keeps its full width, and they scroll when there are more than three.
+- Fixed: with odds on, the cooking screen changed height with every ingredient and could push Start Cooking off the bottom of the game window. The dish list now stays the same height and scrolls. The suggestions now sit under the dish list, so each dish keeps its full width, and they scroll when there are more than three.
 - Made for Survival Log 1.1.20719.
 
 ## 0.9.4
 
 - Fixed: the recipe book rows no longer jump around when you queue a dish. Each row keeps the same size whether or not it shows Load and Queue.
-- A recipe whose ingredients are all set aside for queued dishes is now hidden, since you can't load or queue it. It used to show "set aside for the queue".
-- Fixed: queuing a dish with the stove's screen open now starts cooking on its own, like it does with the screen closed. The stove cooks the dish the game shows for those ingredients, the same as pressing Cook.
-- The cook time on the cooking screen now counts Machine Speed's faster cooking. Machine Speed is optional.
+- A recipe whose ingredients are all reserved for queued dishes is now hidden, since you can't load or queue it. It used to show "set aside for the queue".
+- Fixed: queuing a dish with the stove's screen open now starts cooking on its own, like it does with the screen closed. The stove cooks the dish the game shows for those ingredients, the same as pressing Start Cooking.
+- The cook time on the cooking screen now includes Machine Speed's faster cooking. Machine Speed is optional.
 - Made for Survival Log 1.1.20719.
 
 ## 0.9.3
 
-- **Warning:** now uses Exiled's Toolkit for its shared parts, so it needs Exiled's Toolkit 0.19.0 or newer. Update the Toolkit first.
+- **Warning:** now uses shared code from Exiled's Toolkit, so it needs Exiled's Toolkit 0.19.0 or newer. Update the Toolkit first.
 - Made for Survival Log 1.1.20719.
 
 ## 0.9.2
 
-- Fixed for the 1.1.20719 game update: a pot the cooking queue starts while the stove's screen is closed now cooks as long as the game's Cook button would make it cook. In Individual mode the game times a pot of several dishes differently from its first dish alone, and the queue now does the same.
+- Fixed for the 1.1.20719 game update: when the cooking queue starts a pot while the stove's screen is closed, it now cooks for as long as it would if you pressed Start Cooking. In Individual mode the game times a pot of several dishes differently than a single dish, and the queue now does the same.
 - Made for Survival Log 1.1.20719.
 
 ## 0.9.1
 
 - **Warning:** needs Exiled's Toolkit 0.11.0 or newer. Update the Toolkit first.
-- Put dishes away: when a pot cooks several dishes and a storage fills up partway, the warning for a dish left in the stove now says which storage is full (or that no storage is tagged for it), and that the stove's queue waits until the dish is out. The dish is tried again every 30 seconds, and the queue goes on once it is put away.
+- Put dishes away: when a pot cooks several dishes and a storage fills up partway, the warning for a dish left in the stove now says which storage is full (or that no storage is tagged for it), and that the stove's queue waits until the dish is out. Cooking Hub tries again every 30 seconds, and the queue carries on once the dish is put away.
 - Made for Survival Log 1.1.20151.
 
 ## 0.9.0
@@ -37,7 +42,7 @@
 
 ## 0.8.0
 
-- `UiScale` under Interface now sizes Cooking Hub's tabs and the recipe book on the cooking screen. At 0 they follow Exiled's Toolkit's UI size. When the bigger book would no longer fit the window, it is drawn as big as still fits, and the game's other panels keep their size.
+- `UiScale` under Interface now sets the size of Cooking Hub's tabs and the recipe book on the cooking screen. At 0 they use Exiled's Toolkit's UI size. If the bigger book wouldn't fit in the window, it shrinks until it does. The game's other panels keep their size.
 - Made for Survival Log 1.1.19611.
 
 ## 0.7.1
@@ -48,7 +53,7 @@
 
 ## 0.7.0
 
-- New: `UiScale` under Interface sets the size of Cooking Hub's pop-up messages on their own, from 75% to 200%, whatever Exiled's Toolkit's UI size is. At 0, the default, they follow the Toolkit's. Needs Exiled's Toolkit 0.11.0 or newer.
+- New: `UiScale` under Interface sets the size of Cooking Hub's pop-up messages, from 75% to 200%, separate from Exiled's Toolkit's UI size. At 0, the default, they use the Toolkit's size. Needs Exiled's Toolkit 0.11.0 or newer.
 - Made for Survival Log 1.1.19611.
 
 ## 0.6.9
@@ -59,17 +64,17 @@
 
 ## 0.6.8
 
-- The pop-up messages over the game can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once.
+- The pop-up messages over the game can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. Changes show right away.
 - The tabs, buttons and odds on the game's cooking screen keep the game's size, like the rest of that screen.
 - Made for Survival Log 1.1.19611.
 
 ## 0.6.7
 
-- Less stutter the first time you open a cooking screen after loading a save. The recipes are now read a little at a time in the background.
-- Less stutter while a cooking screen is open. Cooking Hub now reads the stove again only when something on it changes.
-- The game's cooking screen asks to redraw itself less often, and never while it is closed.
+- Less stutter the first time you open a cooking screen after loading a save. The recipes now load a little at a time in the background.
+- Less stutter while a cooking screen is open. Cooking Hub now checks the stove again only when something on it changes.
+- The cooking screen redraws less often, and never while it is closed.
 - When your food changes, the Cook now, Queued and Pantry tabs redraw only the cards that changed, so the cooking screen stays smooth.
-- A Cooking Hub button pressed in the first moments after loading a save may say that the recipes are still being read. Press it again a moment later.
+- Right after you load a save, a Cooking Hub button may say the recipes are still loading. Press it again a moment later.
 - Made for Survival Log 1.1.19611.
 
 ## 0.6.6
@@ -92,7 +97,7 @@
 
 ## 0.6.3
 
-- Less stutter: while the cooking screen is closed, the mod no longer reads every food in your storages every few seconds. With a stove open, each storage is looked up once per read instead of once per stack.
+- Less stutter: while the cooking screen is closed, the mod no longer reads every food in your storages every few seconds. With a stove open, it checks each storage once instead of once for every stack in it.
 
 ## 0.6.2
 
@@ -135,12 +140,12 @@
 
 - The Cooking Hub window, its pot button on the HUD and its K key are gone. Everything now happens on the game's cooking screen: Cook now lists what the stove can make from your food, and Pantry lists all your food.
 - The queue is gone for now: there is no Queued tab and no Load next. You can delete `BepInEx\config\CookingHub.queue.txt`.
-- FillSpoilingFirst and ShowOdds are set in the cfg file or on the Mod Manager's Mods screen.
+- You now set FillSpoilingFirst and ShowOdds in the cfg file or on the Mod Manager's Mods screen.
 
 ## 0.4.1
 
 - Cook now, Pantry and Queued cards show what the dish or food restores, one icon per stat. Cards in the pot for dishes you know show it too, even with the odds turned off.
-- Hovering a Cook now, Pantry or Queued card shows the cooking screen's own tooltip, so Info Pack's details appear there the same as in the Recipe Book.
+- Hovering a Cook now, Pantry or Queued card shows the cooking screen's tooltip, so Info Pack's details appear there the same as in the Recipe Book.
 
 ## 0.4.0
 

@@ -21,7 +21,7 @@ public class CookRunTests
         var pressed = CookRun.Fill(game, PorkRice, isSpoilingFirst: true, isChinese: false);
 
         Assert.True(pressed.IsDone);
-        Assert.Equal("The pot is filled for Pork Rice.", pressed.Message);
+        Assert.Equal("Loaded the ingredients for Pork Rice.", pressed.Message);
         Assert.Equal(new long[] { 2, 3 }, InPot(game));
     }
 
@@ -65,7 +65,7 @@ public class CookRunTests
         var pressed = CookRun.Fill(game, PorkRice, true, false);
 
         Assert.True(pressed.IsDone);
-        Assert.Equal("The pot is filled for Pork Rice.", pressed.Message);
+        Assert.Equal("Loaded the ingredients for Pork Rice.", pressed.Message);
         Assert.Equal(new long[] { 1, 2 }, InPot(game));
         Assert.Contains(game.Stock, stack => stack.InstanceId == 3 && stack.OwnerId == Chest);
     }
@@ -178,7 +178,7 @@ public class CookRunTests
         game.Pot.Add(S(9, Wheat, owner: Workbench));
         game.Forecasts.Add(new Forecast(StirFry, false, true));
 
-        Assert.Equal("The pot is filled for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
+        Assert.Equal("Loaded the ingredients for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
         Assert.Equal(new long[] { 2, 3 }, InPot(game));
     }
 
@@ -191,7 +191,7 @@ public class CookRunTests
         game.Pot.Add(S(9, Wheat, owner: Workbench));
         game.Forecasts.Add(new Forecast(Recipe.DarkFood, false, true));
 
-        Assert.Equal("The pot is filled for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
+        Assert.Equal("Loaded the ingredients for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
         Assert.Equal(new long[] { 2, 3 }, InPot(game));
     }
 
@@ -205,7 +205,7 @@ public class CookRunTests
         game.Pot.Add(S(9, Wheat, owner: Workbench));
         game.Forecasts.Add(new Forecast(StirFry, false, true));
 
-        Assert.Equal("The pot is filled for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
+        Assert.Equal("Loaded the ingredients for Pork Rice.", CookRun.Fill(game, PorkRice, true, false).Message);
         Assert.Equal(new long[] { 2, 3 }, InPot(game));
     }
 
@@ -261,7 +261,7 @@ public class CookRunTests
         var pressed = CookRun.Fill(game, PorkRice, true, false);
 
         Assert.True(pressed.IsDone);
-        Assert.Equal("Moved 1 of 2; the game refused the rest.", pressed.Message);
+        Assert.Equal("Moved 1 of 2. The game wouldn't take the rest.", pressed.Message);
     }
 
     [Fact]
@@ -355,7 +355,7 @@ public class CookRunTests
 
         game.FuelPreferred.Clear();
 
-        Assert.Equal("Put one fuel in by hand first; topping up adds more of the same.", CookRun.TopUp(game, false).Message);
+        Assert.Equal("Put one fuel in by hand first. Top up adds more of the same kind.", CookRun.TopUp(game, false).Message);
         Assert.Equal(1, game.FuelUsed);
     }
 
@@ -382,7 +382,7 @@ public class CookRunTests
         var game = new FakeGame { Stock = { S(1, Pork, hours: 20, owner: Chest) }, Pot = { S(9, Pork, isSpoiled: true, owner: Workbench), S(8, Rice, owner: Workbench) } };
         var pressed = CookRun.Swap(game, Pork, false);
 
-        Assert.Equal("Swapped the spoiled Pork for fresh.", pressed.Message);
+        Assert.Equal("Swapped the spoiled Pork for a fresh one.", pressed.Message);
         Assert.Equal(new long[] { 1, 8 }, InPot(game));
         Assert.Contains(game.Stock, stack => stack.InstanceId == 9 && stack.OwnerId == Bag);
     }
@@ -409,7 +409,7 @@ public class CookRunTests
         var pressed = CookRun.Fill(game, PorkRice, true, false, CookQueue.Empty.Add(801, PorkRice));
 
         Assert.False(pressed.IsDone);
-        Assert.Equal("The food for Pork Rice is set aside for queued dishes.", pressed.Message);
+        Assert.Equal("The ingredients for Pork Rice are reserved for queued dishes.", pressed.Message);
         Assert.Empty(game.Pot);
     }
 

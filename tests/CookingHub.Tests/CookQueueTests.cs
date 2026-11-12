@@ -86,7 +86,7 @@ public class CookQueueTests
         var (after, pressed) = Add(queued, JustOnePorkRice(), Stove, PorkRice);
 
         Assert.False(pressed.IsDone);
-        Assert.Equal("The food for Pork Rice is set aside for queued dishes.", pressed.Message);
+        Assert.Equal("The ingredients for Pork Rice are reserved for queued dishes.", pressed.Message);
         Assert.Empty(after.For(Stove));
     }
 

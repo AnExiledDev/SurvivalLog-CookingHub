@@ -7,15 +7,15 @@ Settings live in `BepInEx\config\com.dev.survivallog.cookinghub.cfg`, created th
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `FillSpoilingFirst` | `true` | Load and Repeat last fill the pot with the food closest to spoiling first. When `false`, they use the freshest food first. |
-| `ShowOdds` | `true` | The game's cooking screen shows the chance of each quality under every dish it forecasts, with the reasons and what would raise it. |
+| `ShowOdds` | `true` | The cooking screen shows the chance of each quality under every dish it says the pot will make, with the reasons and what would raise it. |
 | `ShowUnlearnedRecipes` | `false` | The cooking screen gets a Not learned tab listing the recipes this stove can cook that the recipe book does not show yet, with the food you have for each. When `false`, only the recipes the game shows are listed. |
-| `PutDishesAway` | `false` | A finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away; a storage already holding that dish is the fallback. A dish no storage takes stays in the stove. |
+| `PutDishesAway` | `false` | A finished dish moves out of the stove into the home storage whose tags want it, the way Storage Hub puts items away. If no tagged storage takes it, it goes to a storage that already holds that dish. If no storage has room, the dish stays in the stove. |
 
 ## Interface
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `UiScale` | `0` | How big Cooking Hub's tabs and the recipe book are drawn on the cooking screen, in percent, from 75 to 200. At `0` they follow the UI size set in Exiled's Toolkit (its `UiScale`). When the cooking screen would no longer fit the window, the book is drawn as big as still fits. |
+| `UiScale` | `0` | The size of Cooking Hub's tabs and recipe book on the cooking screen, in percent, from 75 to 200. At `0` they use the UI size set in Exiled's Toolkit (its `UiScale`). If the cooking screen wouldn't fit in the window at this size, the book shrinks until it does. |
 
 ## Diagnostics
 

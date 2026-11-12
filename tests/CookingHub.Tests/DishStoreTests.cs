@@ -178,7 +178,7 @@ public class DishStoreTests
 
         Assert.Equal(new DishNote("Put Pork Rice away in Fridge.", false), into);
         Assert.True(stays.IsWarning);
-        Assert.Equal("Pork Rice stays in the stove: no storage is tagged for it.", stays.Text);
+        Assert.Equal("Pork Rice stays in the stove because no storage is tagged for it.", stays.Text);
     }
 
     // A pot cooking several dishes at once leaves each as its own item in the stove (Furniture.SettleCookingResult adds
@@ -231,7 +231,7 @@ public class DishStoreTests
         var note = DishStore.Note(stays, isQueued: true, isChinese: false);
 
         Assert.True(note.IsWarning);
-        Assert.Equal($"Watermelon Juice stays in the stove: S{Fridge} and every other storage that takes it are full. The stove's queue waits until it is out, and it is tried again every 30 seconds.", note.Text);
+        Assert.Equal($"Watermelon Juice stays in the stove because S{Fridge} and every other storage that takes it are full. The stove's queue waits until the dish is out. Cooking Hub tries again every 30 seconds.", note.Text);
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public class DishStoreTests
 
         var stored = Assert.Single(DishStore.PutAway(game));
 
-        Assert.Equal($"Pork Rice stays in the stove: S{Fridge} is full.", DishStore.Describe(stored, isChinese: false));
+        Assert.Equal($"Pork Rice stays in the stove because S{Fridge} is full.", DishStore.Describe(stored, isChinese: false));
         Assert.Equal($"Pork Rice留在灶具里：S{Fridge}已满。", DishStore.Describe(stored, isChinese: true));
     }
 }
