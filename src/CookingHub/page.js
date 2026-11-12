@@ -624,7 +624,9 @@
     return !!dish && dish.state === 'ready' && !dish.setAside;
   }
 
+  // A dish whose food is all set aside for the queue is hidden: it can't be loaded or queued until the queue uses it.
   function matchesFilter(recipe, dish) {
+    if (dish && dish.setAside) return false;
     if (station.filter === 'load') return isFree(dish);
     if (station.filter === 'new') return !!dish && dish.isNew;
     if (station.filter === 'locked') return !!recipe.craftLocked || (!!dish && dish.state === 'locked') || hasLockedVariant(recipe);

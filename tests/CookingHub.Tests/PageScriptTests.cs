@@ -559,12 +559,13 @@ public class PageScriptTests
     private static string LoadOn(string name) => ViewRow(name) + ".querySelector('.st-fill')";
 
     [Fact]
-    public void A_dish_only_set_aside_food_covers_offers_no_Load_or_Queue_and_no_note()
+    public void A_dish_only_set_aside_food_covers_is_hidden_since_it_cannot_be_loaded_or_queued()
     {
         var game = Stocked();
         var page = Station(game, new StationExtras(null, 0, Array.Empty<int>(), SetAsideForAnotherStove(game)));
         var row = "cookingPage().querySelectorAll('.book-item')[0]";
 
+        Assert.Equal("none", page.Text(row + ".style.display"));
         Assert.Equal("", page.Text(RowButtons(row)));
         Assert.DoesNotContain("set aside", page.Text(row + ".textContent"));
 
