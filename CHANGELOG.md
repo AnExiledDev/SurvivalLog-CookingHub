@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.5
+
+- Fixed: with odds on, the cooking screen changed height with every ingredient and could push Start cooking off the bottom of the game window. The dish list now keeps one height and scrolls. The suggestions sit under it, so each dish keeps its full width, and they scroll when there are more than three.
+- Made for Survival Log 1.1.20719.
+
 ## 0.9.4
 
 - Fixed: the recipe book rows no longer jump around when you queue a dish. Each row keeps the same size whether or not it shows Load and Queue.

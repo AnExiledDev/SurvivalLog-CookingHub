@@ -206,7 +206,11 @@
   // Classes the game's stylesheet already gives these pages (Cooking.html): its colours, its recipe rows.
   var STATION_CSS = [
     '.right-panel{width:400px!important}',
-    '.cooking-system{min-height:780px!important}.recipe-section{min-height:300px!important}.prediction-list{max-height:none!important}',
+    // The game fits the screen to the window only when it opens, and its dish list grows with each dish (to 180px,
+    // less than one dish with its odds), so the window changed height with every ingredient. Without a cap it pushed
+    // Start cooking off the bottom. One height, 300px or less on a short screen, shows one and a half dishes and
+    // scrolls past that. The suggestions scroll past three.
+    '.cooking-system{min-height:780px!important}.recipe-section{min-height:300px!important}.prediction-list{height:min(300px,max(120px,calc(100vh - 740px)))!important;max-height:none!important}',
     '.action-buttons>button{flex:1 1 0;min-width:0}.action-buttons>.ch-btn2{flex:0 0 auto}',
     '.ch-bar{flex-shrink:0}',
     '.ch-tabs{display:flex;gap:6px;margin-bottom:8px}',
@@ -243,8 +247,8 @@
     '.ch-why{width:100%;margin-top:6px;font-size:11px;color:var(--text-dark);display:flex;flex-wrap:wrap;gap:4px}',
     '.ch-why span{padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.06)}',
     '.ch-why span.ch-up{color:#9fc88a}.ch-why span.ch-down{color:#ff9a9a;background:rgba(224,85,85,.15)}',
-    '#ch-nudges{display:flex;flex-direction:column;gap:6px;margin-top:8px}',
-    '.ch-nudge{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text-main);background:rgba(251,176,52,.1);border:1px dashed rgba(251,176,52,.55);font-family:inherit;text-align:left}',
+    '#ch-nudges{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:110px;overflow-y:auto}',
+    '.ch-nudge{display:flex;flex-shrink:0;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text-main);background:rgba(251,176,52,.1);border:1px dashed rgba(251,176,52,.55);font-family:inherit;text-align:left}',
     '.ch-nudge:hover{background:rgba(251,176,52,.22)}.ch-nudge .ch-gain{margin-left:auto;color:var(--q-perfect);font-weight:bold;white-space:nowrap}',
     '.ch-stoveline{font-size:12px;color:var(--text-dark);margin:0 0 8px;display:flex;justify-content:space-between;gap:8px}',
     '.ch-stoveline b{color:var(--text-main);font-weight:600}',
@@ -1366,7 +1370,11 @@
       return;
     }
 
-    if (existing && existing.getAttribute('data-version') === key && existing.previousSibling === list) return;
+    // Under the whole pot row: the game puts the list between its arrow buttons in a side-by-side row, and a block
+    // inside that row takes the list's width, which squeezes every dish card into a tall narrow strip.
+    var row = (list.closest && list.closest('.pot-row')) || list;
+
+    if (existing && existing.getAttribute('data-version') === key && existing.previousSibling === row) return;
     if (existing) existing.remove();
 
     var box = make(doc, 'div');
@@ -1374,7 +1382,7 @@
     box.id = NUDGES_ID;
     box.setAttribute('data-version', key);
     nudges.forEach(function (n) { box.appendChild(nudgeButton(doc, n)); });
-    list.parentNode.insertBefore(box, list.nextSibling);
+    row.parentNode.insertBefore(box, row.nextSibling);
   }
 
   // A seasoning goes in as one more of it; a swap trades a spoiled ingredient for a fresh one of the same.

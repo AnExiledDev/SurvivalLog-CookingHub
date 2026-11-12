@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using System.Globalization;
 using CookingHub.Core;
 using Xunit;
 using static CookingHub.Tests.FakeGame;
@@ -75,6 +77,44 @@ public class PageScriptTests
         page.Click("cookingPage().querySelector('.ch-nudge')");
 
         Assert.Equal(new PageCommand.Add(Salt), Assert.Single(page.Sent));
+    }
+
+    [Fact]
+    public void Suggestions_go_under_the_dish_row_so_the_dishes_keep_their_width()
+    {
+        var game = Stocked();
+
+        game.Forecasts.Add(new Forecast(PorkRice, true, true));
+        game.Pot.Add(S(8, Rice, owner: Workbench));
+
+        var kitchen = game.Kitchen();
+        var page = new PageScript();
+
+        page.Catalog(CatalogView.Write(Book));
+        page.OpenCooking(PorkRice);
+        page.Cooking(CookView.Overlay(kitchen, kitchen.Stove ?? throw new InvalidOperationException(), isShowingOdds: true));
+        page.Poll();
+
+        // The game's .pot-row lays its children side by side, so a box inside it takes width from the dish list.
+        Assert.Equal("potSection", page.Text("cookingPage().getElementById('ch-nudges').parentNode.id"));
+        Assert.Equal("pot-row", page.Text("cookingPage().getElementById('ch-nudges').previousSibling.className"));
+
+        page.Poll();
+
+        Assert.Equal(1, Count(page, "cookingPage().querySelectorAll('#ch-nudges')"));
+    }
+
+    [Fact]
+    public void The_dish_list_keeps_one_height_so_the_window_does_not_grow_off_screen_as_dishes_appear()
+    {
+        var page = Station(Stocked());
+        var css = page.Text("cookingPage().getElementById('ch-station-style').textContent");
+        var list = Regex.Match(css, @"\.prediction-list\{height:min\((\d+)px[^}]*max-height:none");
+        var suggestions = Regex.Match(css, @"#ch-nudges\{[^}]*max-height:(\d+)px;overflow-y:auto");
+
+        Assert.True(list.Success, css);
+        Assert.InRange(int.Parse(list.Groups[1].Value, CultureInfo.InvariantCulture), 180, 320);
+        Assert.True(suggestions.Success, css);
     }
 
     private const string StationBook = "[{recipeId:1,name:'Pork Rice',status:0,variantCount:1},{recipeId:2,name:'Stir Fry',status:1,variantCount:1}]";

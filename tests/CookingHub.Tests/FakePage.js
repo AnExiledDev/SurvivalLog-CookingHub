@@ -355,11 +355,15 @@ function hudPage() {
 
 // The game's cooking screen (UI/Cooking/Cooking.html) with a forecast: one pot card per recipe id, and the page's
 // global State naming the same ids, as renderPredictionList leaves them. Its one tooltip, #recipeTooltip, and its
-// global showItemTip, which writes an item's name there (Cooking.html showItemTip).
+// global showItemTip, which writes an item's name there (Cooking.html showItemTip). The list sits in .pot-row between
+// the two dish arrows, a side-by-side row, as on the game's page.
 function openCooking(recipeIds) {
   var frame = document.body.appendChild(new FakeElement('iframe'));
   var section = new FakeElement('div');
+  var row = new FakeElement('div');
+  var previous = new FakeElement('div');
   var list = new FakeElement('div');
+  var next = new FakeElement('div');
   var tip = new FakeElement('div');
 
   frame.src = 'https://game.local/UI/Cooking/Cooking.html';
@@ -378,10 +382,19 @@ function openCooking(recipeIds) {
     }
   };
   section.id = 'potSection';
+  row.className = 'pot-row';
+  previous.id = 'dishPrev';
+  previous.className = 'dish-arrow';
   list.id = 'predictionList';
+  list.className = 'prediction-list';
+  next.id = 'dishNext';
+  next.className = 'dish-arrow';
   tip.id = 'recipeTooltip';
   tip.style.display = 'none';
-  section.appendChild(list);
+  row.appendChild(previous);
+  row.appendChild(list);
+  row.appendChild(next);
+  section.appendChild(row);
   frame.contentDocument.body.appendChild(section);
   frame.contentDocument.body.appendChild(tip);
   forecast(frame, recipeIds);
