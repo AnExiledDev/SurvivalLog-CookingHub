@@ -210,7 +210,7 @@
     '.action-buttons>button{flex:1 1 0;min-width:0}.action-buttons>.ch-btn2{flex:0 0 auto}',
     '.ch-bar{flex-shrink:0}',
     '.ch-tabs{display:flex;gap:6px;margin-bottom:8px}',
-    '.ch-tab{flex:1;text-align:center;padding:6px 4px;font-size:13px;border-radius:6px;cursor:pointer;color:var(--text-dark);background:rgba(25,20,18,.85);border:1px solid rgba(255,255,255,.1);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}',
+    '.ch-tab{flex:1 1 auto;text-align:center;padding:6px 4px;font-size:13px;border-radius:6px;cursor:pointer;color:var(--text-dark);background:rgba(25,20,18,.85);border:1px solid rgba(255,255,255,.1);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}',
     '.ch-tab:hover{color:var(--text-main);border-color:rgba(251,176,52,.4)}',
     '.ch-tab.ch-on{color:var(--warm-gold);border-color:rgba(251,176,52,.6);background:rgba(251,176,52,.12);font-weight:bold}',
     '.ch-tab .ch-n{display:inline-block;min-width:16px;padding:0 4px;margin-left:4px;border-radius:8px;font-size:10px;line-height:16px;background:rgba(251,176,52,.25);color:var(--warm-gold)}',
