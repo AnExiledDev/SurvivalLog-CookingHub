@@ -210,7 +210,7 @@
     '.action-buttons>button{flex:1 1 0;min-width:0}.action-buttons>.ch-btn2{flex:0 0 auto}',
     '.ch-bar{flex-shrink:0}',
     '.ch-tabs{display:flex;gap:6px;margin-bottom:8px}',
-    '.ch-tab{flex:1;text-align:center;padding:6px 4px;font-size:13px;border-radius:6px;cursor:pointer;color:var(--text-dark);background:rgba(25,20,18,.85);border:1px solid rgba(255,255,255,.1);white-space:nowrap}',
+    '.ch-tab{flex:1;text-align:center;padding:6px 4px;font-size:13px;border-radius:6px;cursor:pointer;color:var(--text-dark);background:rgba(25,20,18,.85);border:1px solid rgba(255,255,255,.1);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}',
     '.ch-tab:hover{color:var(--text-main);border-color:rgba(251,176,52,.4)}',
     '.ch-tab.ch-on{color:var(--warm-gold);border-color:rgba(251,176,52,.6);background:rgba(251,176,52,.12);font-weight:bold}',
     '.ch-tab .ch-n{display:inline-block;min-width:16px;padding:0 4px;margin-left:4px;border-radius:8px;font-size:10px;line-height:16px;background:rgba(251,176,52,.25);color:var(--warm-gold)}',
@@ -233,6 +233,10 @@
     '.ch-sp.ch-red{background:rgba(224,85,85,.25);color:#ffb4b4}.ch-sp.ch-amber{background:rgba(251,176,52,.18);color:var(--warm-gold)}',
     '.ch-sp.ch-dim{background:rgba(255,255,255,.06);color:var(--text-dark)}.ch-sp.ch-bad{background:rgba(224,85,85,.5);color:#fff}',
     '.ch-x{font-size:11px;padding:2px 6px;border-radius:4px;cursor:pointer;color:var(--text-dark);border:1px solid rgba(255,255,255,.14);flex-shrink:0}',
+    // Load on top and Queue under it, each in its own slot of a column that keeps its size, so a row's name and food
+    // keep their room whichever of the two the row offers.
+    '.ch-acts{display:grid;grid-template-rows:22px 22px;row-gap:3px;width:58px;flex-shrink:0;align-content:center}',
+    '.ch-acts>*{grid-column:1;text-align:center;line-height:12px;box-sizing:border-box}.ch-acts>.st-fill{grid-row:1}.ch-acts>.ch-x{grid-row:2;padding:4px 6px}',
     '.ch-odds{width:100%;margin-top:8px;display:grid;grid-template-columns:62px 1fr 38px;gap:3px 8px;align-items:center;font-size:11px}',
     '.ch-odds .ch-ot{color:var(--text-dark)}.ch-odds .ch-op{text-align:right;color:var(--text-main)}.ch-odds .ch-zero{opacity:.35}',
     '.ch-odds .ch-bar7{height:7px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden}.ch-odds .ch-bar7 i{display:block;height:100%}',
@@ -645,8 +649,7 @@
 
   // Where the food is or what is missing, a bar of the odds, the Perfect chance, Load when the game's fill would
   // refuse (its rows only count the bag) but the player's storages cover the dish, or the pot can take the dish once
-  // more, and Queue beside it. Food set aside
-  // for queued dishes does not count, and a dish only it covers says so instead.
+  // more, and Queue under it. Food set aside for queued dishes does not count, so a dish only it covers offers neither.
   // Keyed by what the row is drawn from, so a row whose dish did not change keeps its drawing through a new overlay.
   function decorateRow(doc, row, recipe, dish) {
     var key = [recipe.recipeId, dish ? dishVersion[dish.id] : '-', recipe.status, recipe.craftLocked ? 1 : 0, recipe.variantCount, overlay.queueFull ? 1 : 0, overlay.addsDish ? 1 : 0, catVersion].join(':');
@@ -682,26 +685,22 @@
 
     if (recipe.craftLocked || isGroup || dish.state === 'locked') return;
 
-    if (dish.setAside) {
-      row.appendChild(make(doc, 'span', 'ch-sp ch-dim ' + OURS, say('setAside')));
-
-      return;
-    }
-
     // The game offers no fill once the pot already makes the dish, but a cook who can make several dishes in one pot
     // can load it again: three Watermelons in a juicer make three Watermelon Juices.
-    if (dish.state === 'ready' && (recipe.status === 0 || (recipe.status === 2 && overlay.addsDish))) {
-      row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
-    }
+    var isLoadable = isFree(dish) && (recipe.status === 0 || (recipe.status === 2 && overlay.addsDish));
 
-    if (isFree(dish)) addQueueButton(doc, row, dish.id);
+    row.appendChild(actions(doc, dish, isLoadable));
   }
 
-  // Queue, beside Load: the dish is cooked on this stove once its finished dishes are taken out.
-  function addQueueButton(doc, row, id) {
-    if (overlay.queueFull) return;
+  // Load and Queue in their column. The column is there even with neither, so a row keeps its shape while the queue
+  // sets food aside or fills up. Queue cooks the dish on this stove once its finished dishes are taken out.
+  function actions(doc, dish, isLoadable) {
+    var column = make(doc, 'div', 'ch-acts ' + OURS);
 
-    row.appendChild(pageButton(doc, 'span', 'ch-x', say('queue'), function () { sendAction('queue|' + id); }));
+    if (isLoadable) column.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
+    if (isFree(dish) && !overlay.queueFull) column.appendChild(pageButton(doc, 'span', 'ch-x', say('queue'), function () { sendAction('queue|' + dish.id); }));
+
+    return column;
   }
 
   // A live HTMLCollection has no array methods.
@@ -847,8 +846,7 @@
         if (dish.hours != null) row.appendChild(spoilChip(doc, dish.hours));
         if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
 
-        row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
-        addQueueButton(doc, row, dish.id);
+        row.appendChild(actions(doc, dish, true));
 
         return row;
       });
@@ -881,10 +879,7 @@
         if (dish.showLevel > 0) row.appendChild(make(doc, 'span', 'ch-sp ch-dim', say('showsAt', dish.showLevel)));
         if (dish.chances) row.appendChild(make(doc, 'span', 'ch-pp', dish.chances[3] + '%'));
 
-        if (isFree(dish)) {
-          row.appendChild(pageButton(doc, 'span', 'st-fill', say('load'), function () { sendAction('fill|' + dish.id); }));
-          addQueueButton(doc, row, dish.id);
-        }
+        row.appendChild(actions(doc, dish, isFree(dish)));
 
         return row;
       });
@@ -1174,9 +1169,9 @@
     });
   }
 
-  // Repeat last asks for the game's Cook button once its pot is filled: the plugin raises the start token for a
-  // few seconds, and only while the pot forecasts that dish. The button also stops a cooking stove, so it is pressed
-  // only while nothing cooks, and once per token.
+  // Repeat last and the queue ask for the game's Cook button once they filled the pot: the plugin raises the start
+  // token for a few seconds, and only while the pot forecasts a dish it can start. The button also stops a cooking
+  // stove, so it is pressed only while nothing cooks, and once per token.
   function pressStart(doc, win) {
     var token = overlay.start || 0;
     var cook = doc.getElementById('cookBtn');

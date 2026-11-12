@@ -10,11 +10,15 @@ namespace CookingHub.Core;
 /// <summary>
 /// What the session keeps for the open stove: the dish it last started (null when none this game start), the start
 /// token, which counts up once per filled pot that should also start the stove (0 for none), its queued dishes, and the
-/// food set aside for every stove's queue (null when nothing is queued anywhere).
+/// food set aside for every stove's queue (null when nothing is queued anywhere). CookSpeedup is how many times faster
+/// another mod (Machine Speed) makes the next cook than the game would, 1 for none.
 /// </summary>
-public sealed record StationExtras(int? Last, int Start, IReadOnlyList<int> Queue, Reservation? Reserved = null)
+public sealed record StationExtras(int? Last, int Start, IReadOnlyList<int> Queue, Reservation? Reserved = null, float CookSpeedup = 1f)
 {
     public static readonly StationExtras None = new(null, 0, Array.Empty<int>());
+
+    /// <summary>The speedup the cook time is divided by: a speedup that is not a positive number means none.</summary>
+    public float SafeCookSpeedup => float.IsFinite(CookSpeedup) && CookSpeedup > 0f ? CookSpeedup : 1f;
 }
 
 /// <summary>
@@ -41,7 +45,7 @@ public static class CookView
         json.WriteBoolean("potEmpty", stove.PotCount == 0);
         json.WriteNumber("level", kitchen.Level);
         json.WriteNumber("floor", kitchen.Book.Rules.Floor(kitchen.Level));
-        WriteStation(json, kitchen, stove);
+        WriteStation(json, kitchen, stove, station.SafeCookSpeedup);
         json.WriteStartArray("book");
 
         foreach (var dish in Finder.ForStove(kitchen, stove, fresh, isShowingUnlearned)) WriteBookRow(json, kitchen, stove, fresh, dish, station.Reserved);
@@ -97,11 +101,11 @@ public static class CookView
     public static string NoOverlay() => Json.Object(json => json.WriteBoolean("show", false));
 
     /// <summary>
-    /// The open stove's name, speed and quality bonus, how long the forecast dish takes on it, and its fuel: free slots,
-    /// total slots, how many units of its fuel the player has, and whether it has burned any yet (known), since a top up
-    /// only adds kinds it already burns.
+    /// The open stove's name, speed and quality bonus, how long the forecast dish takes on it once a speedup from another
+    /// mod is counted, and its fuel: free slots, total slots, how many units of its fuel the player has, and whether it
+    /// has burned any yet (known), since a top up only adds kinds it already burns.
     /// </summary>
-    private static void WriteStation(Utf8JsonWriter json, Kitchen kitchen, Stove stove)
+    private static void WriteStation(Utf8JsonWriter json, Kitchen kitchen, Stove stove, float cookSpeedup)
     {
         var main = stove.Forecasts.FirstOrDefault(forecast => forecast.RecipeId != Recipe.DarkFood);
         var recipe = main != null && kitchen.Book.Recipes.TryGetValue(main.RecipeId, out var found) ? found : null;
@@ -112,7 +116,7 @@ public static class CookView
         json.WriteNumber("bonus", stove.QualityBonus);
         json.WriteBoolean("hotPot", stove.IsHotPot);
 
-        if (recipe != null) json.WriteNumber("cookSecs", Math.Round(stove.CookSeconds(recipe)));
+        if (recipe != null) json.WriteNumber("cookSecs", Math.Round(stove.CookSeconds(recipe) / cookSpeedup));
         else json.WriteNull("cookSecs");
 
         if (stove.Fuel is { } fuel)

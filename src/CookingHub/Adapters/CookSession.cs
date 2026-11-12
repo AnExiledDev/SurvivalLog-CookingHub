@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using CookingHub.Core;
 using ExiledToolkit;
 using ExiledToolkit.Game;
@@ -27,6 +26,7 @@ internal sealed class CookSession
     private readonly WebKeyboard _keyboard = new();
     private readonly PageMailbox _messages = PageInbox.Listen(PageCommand.Prefix);
     private readonly Action<string> _log;
+    private readonly Func<float> _cookSpeedup;
 
     private bool _isSpoilingFirst = true;
     private bool _isShowingOdds = true;
@@ -47,7 +47,7 @@ internal sealed class CookSession
     private int _startToken;
     private float _startUntil;
     private long? _startStoveId;
-    private IReadOnlyList<int> _startIds = Array.Empty<int>();
+    private StartWant? _startWant;
     private CookQueue _queue = CookQueue.Empty;
     private float _nextQueueAt;
     private HashSet<long> _idleBefore = new();
@@ -56,13 +56,15 @@ internal sealed class CookSession
     private readonly HashSet<long> _toldStays = new();
     private readonly DishRetry _dishRetry = new();
 
-    public CookSession(ICookGame game, IDishGame dishes, IKitchenWatch watch, CookPage page, Action<string> log)
+    /// <param name="cookSpeedup">How many times faster another mod makes the next cook, read each time the overlay is built.</param>
+    public CookSession(ICookGame game, IDishGame dishes, IKitchenWatch watch, CookPage page, Action<string> log, Func<float> cookSpeedup)
     {
         _game = game;
         _dishes = dishes;
         _watch = watch;
         _page = page;
         _log = log;
+        _cookSpeedup = cookSpeedup;
     }
 
     private static bool IsChinese => GameLanguage.IsChinese();
@@ -213,12 +215,7 @@ internal sealed class CookSession
 
         foreach (var recipeId in turn.RecipeIds) _queue = _queue.Remove(turn.StoveId, recipeId);
 
-        if (turn.Step == QueueStep.Loaded && _book != null)
-        {
-            var recipes = turn.RecipeIds.Where(_book.Recipes.ContainsKey).Select(id => _book.Recipes[id]).ToList();
-
-            if (recipes.Count > 0) AskToStart(turn.StoveId, QueueCook.StartIds(_book, recipes), now);
-        }
+        if (turn.Step == QueueStep.Loaded) AskToStart(turn.StoveId, new StartWant.QueuedPot(), now);
 
         var note = new DishNote(turn.Message, turn.Step is QueueStep.Waiting or QueueStep.NotStarted);
 
@@ -228,14 +225,14 @@ internal sealed class CookSession
 
     /// <summary>
     /// Asks the page to press the game's Cook button for the open stove: the start token counts up once per filled
-    /// pot, and stays up only while the pot forecasts one of these dishes, until the stove cooks or a few seconds pass.
+    /// pot, and stays up only while the pot shows what the start wants, until the stove cooks or a few seconds pass.
     /// </summary>
-    private void AskToStart(long stoveId, IReadOnlyList<int> recipeIds, float now)
+    private void AskToStart(long stoveId, StartWant want, float now)
     {
         _startToken++;
         _startUntil = now + StartWindowSeconds;
         _startStoveId = stoveId;
-        _startIds = recipeIds;
+        _startWant = want;
     }
 
     /// <summary>A put-away or queue notice; one that needs the player's eye shows as a warning.</summary>
@@ -321,7 +318,7 @@ internal sealed class CookSession
 
         if (!pressed.IsDone || _book == null || _last.WatchedId is not { } stoveId || _last.For(stoveId) is not { } recipeId) return pressed;
 
-        AskToStart(stoveId, new[] { recipeId }, CookTicker.Now());
+        AskToStart(stoveId, new StartWant.Dishes(new[] { recipeId }), CookTicker.Now());
 
         return _book.Recipes.TryGetValue(recipeId, out var recipe) ? new Pressed(true, Texts.Starting.Say(IsChinese, recipe.Name)) : pressed;
     }
@@ -395,14 +392,15 @@ internal sealed class CookSession
         {
             var start = StartToken(stove);
             var last = _last.For(stove.FurnitureId);
+            var speedup = _cookSpeedup();
 
-            print = OverlayPrint.Of(kitchen, _isShowingOdds, _isSpoilingFirst, _queue, last, start, _isShowingUnlearned);
+            print = OverlayPrint.Of(kitchen, _isShowingOdds, _isSpoilingFirst, _queue, last, start, _isShowingUnlearned, speedup);
 
             if (print == _shownPrint) return;
 
             var reserved = _queue.IsEmpty ? null : Reservation.Of(kitchen, _queue, _isSpoilingFirst, stove.SlotsByUnit);
 
-            overlay = CookView.Overlay(kitchen, stove, _isShowingOdds, new StationExtras(last, start, _queue.For(stove.FurnitureId), reserved), _isShowingUnlearned);
+            overlay = CookView.Overlay(kitchen, stove, _isShowingOdds, new StationExtras(last, start, _queue.For(stove.FurnitureId), reserved, speedup), _isShowingUnlearned);
         }
         else
         {
@@ -428,22 +426,12 @@ internal sealed class CookSession
         _shownPrint = print;
     }
 
-    /// <summary>The start token goes out only while the pot forecasts the dish asked for, so a pot the game half filled is never started.</summary>
+    /// <summary>The start token goes out only while the pot shows what the start wants, so a pot the game half filled is never started.</summary>
     private int StartToken(Stove stove)
     {
-        var isStarting = _startUntil > 0f && _startStoveId == stove.FurnitureId && _last.Pending is { } pending && ContainsId(_startIds, pending);
+        var isStarting = _startUntil > 0f && _startStoveId == stove.FurnitureId && _startWant != null && _startWant.IsMetBy(stove, _last.Pending);
 
         return isStarting ? _startToken : 0;
-    }
-
-    private static bool ContainsId(IReadOnlyList<int> ids, int id)
-    {
-        foreach (var each in ids)
-        {
-            if (each == id) return true;
-        }
-
-        return false;
     }
 
     /// <summary>A stove's id means nothing in another save, so the queues go when the game is left.</summary>

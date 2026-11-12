@@ -19,7 +19,7 @@ internal static class StoveWarmUp
 
     private static readonly Type[] Adapters =
     {
-        typeof(CookSession), typeof(GameCooking), typeof(BagRefresh), typeof(CookTicker), typeof(CookPage), typeof(StackingUnits),
+        typeof(CookSession), typeof(GameCooking), typeof(BagRefresh), typeof(CookTicker), typeof(CookPage), typeof(StackingUnits), typeof(MachineSpeedCooks),
     };
 
     public static void Start(Action<string> logFileOnly) =>

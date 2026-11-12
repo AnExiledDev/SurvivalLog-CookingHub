@@ -104,7 +104,6 @@ public static class Texts
         ("tabQueue", new("Queued", "队列")),
         ("waiting", new("waiting", "等待中")),
         ("queueShortChip", new("short of food", "食材不足")),
-        ("setAside", new("set aside for the queue", "已留给队列")),
         ("queueNote", new("This stove cooks these in order once its dishes are cleared out. The food for each is set aside, so Load and other queues leave it alone. A dish short of food waits while the next one cooks.", "这个灶具里的菜被取走后，会按顺序做这些菜。每道菜的食材都已留好，「放入」和其他队列不会动用。食材不够的菜会等待，先做下一道。")),
         ("queueNone", new("Nothing queued for this stove. Press Queue on a dish to add it; an idle, empty stove starts it right away.", "没有为这个灶具排队的菜。点击菜品的「排队」即可加入；空闲的空灶具会马上开始做。")),
         ("spoiledWord", new("spoiled", "已变质")),

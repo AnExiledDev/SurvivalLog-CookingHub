@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.4
+
+- Fixed: the recipe book rows no longer jump around when you queue a dish. Each row keeps the same size whether or not it shows Load and Queue.
+- A recipe whose ingredients are all reserved for queued dishes no longer says "set aside for the queue". It just shows no Load or Queue button.
+- Fixed: queuing a dish with the stove's screen open now starts cooking on its own, like it does with the screen closed. The stove cooks the dish the game shows for those ingredients, the same as pressing Cook.
+- The cook time on the cooking screen now counts Machine Speed's faster cooking. Machine Speed is optional.
+- Made for Survival Log 1.1.20719.
+
 ## 0.9.3
 
 - **Warning:** now uses Exiled's Toolkit for its shared parts, so it needs Exiled's Toolkit 0.19.0 or newer. Update the Toolkit first.

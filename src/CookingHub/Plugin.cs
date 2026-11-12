@@ -11,10 +11,11 @@ namespace CookingHub;
 [BepInPlugin(Guid, "Cooking Hub", Version)]
 [BepInDependency(ToolkitGuid, ToolkitVersion)]
 [BepInDependency(StackingGuid, BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency(MachineSpeedCooks.Guid, BepInDependency.DependencyFlags.SoftDependency)]
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.9.3";
+    private const string Version = "0.9.4";
 
     /// <summary>Exiled's Toolkit: its shared helpers, toasts, live settings and UI size all come from it.</summary>
     private const string ToolkitGuid = "com.dev.survivallog.exiledtoolkit";
@@ -59,7 +60,8 @@ public sealed class Plugin : BasePlugin
             game,
             game,
             new CookPage(log.Write),
-            log.Write);
+            log.Write,
+            () => MachineSpeedCooks.Speedup(log.Write));
 
         log.Write($"===== Cooking Hub {Version} started");
         BagRefresh.Apply(hooks, game.IsCookingScreenOpen, log.Write);

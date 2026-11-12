@@ -559,20 +559,49 @@ public class PageScriptTests
     private static string LoadOn(string name) => ViewRow(name) + ".querySelector('.st-fill')";
 
     [Fact]
-    public void A_dish_only_set_aside_food_covers_offers_no_Load_or_Queue_and_says_why()
+    public void A_dish_only_set_aside_food_covers_offers_no_Load_or_Queue_and_no_note()
     {
         var game = Stocked();
-        var reserved = Reservation.Of(game.Kitchen(), CookQueue.Empty.Add(801, PorkRice), isSpoilingFirst: true, isByUnit: false);
-        var page = Station(game, new StationExtras(null, 0, Array.Empty<int>(), reserved));
+        var page = Station(game, new StationExtras(null, 0, Array.Empty<int>(), SetAsideForAnotherStove(game)));
         var row = "cookingPage().querySelectorAll('.book-item')[0]";
 
-        Assert.Equal("", page.Text(row + ".querySelectorAll('.ch-st').filter(function (b) { return b.classList.contains('interactive-btn'); }).map(function (b) { return b.textContent; }).join(',')"));
-        Assert.Contains("set aside for the queue", page.Text(row + ".textContent"));
+        Assert.Equal("", page.Text(RowButtons(row)));
+        Assert.DoesNotContain("set aside", page.Text(row + ".textContent"));
 
         page.Click(StationTab("Cook now"));
 
         Assert.Equal(0, Count(page, "cookingPage().querySelector('.ch-view').querySelectorAll('.book-item')"));
     }
+
+    // Queuing a dish can set food aside or fill the queue, which takes buttons off other rows. Each row keeps a fixed
+    // column for its buttons either way, so the rows do not change shape under the player's cursor.
+    [Fact]
+    public void A_book_row_keeps_its_button_column_when_queuing_takes_its_buttons_away()
+    {
+        var game = Stocked();
+        var full = Enumerable.Repeat(StirFry, CookQueue.Limit).ToList();
+        var pages = new[]
+        {
+            (Buttons: "Load,Queue", Page: Station(game)),
+            (Buttons: "Load", Page: Station(game, new StationExtras(null, 0, full))),
+            (Buttons: "", Page: Station(game, new StationExtras(null, 0, Array.Empty<int>(), SetAsideForAnotherStove(game)))),
+        };
+
+        foreach (var (buttons, page) in pages)
+        {
+            var row = BookRow("Pork Rice");
+
+            Assert.Equal(buttons, page.Text(RowButtons(row)));
+            Assert.Equal("ch-acts", page.Text(row + ".children[" + row + ".children.length - 1].className.split(' ')[0]"));
+            Assert.Equal(1, Count(page, row + ".querySelectorAll('.ch-acts')"));
+        }
+    }
+
+    private static Reservation SetAsideForAnotherStove(FakeGame game) =>
+        Reservation.Of(game.Kitchen(), CookQueue.Empty.Add(801, PorkRice), isSpoilingFirst: true, isByUnit: false);
+
+    private static string RowButtons(string row) =>
+        row + ".querySelectorAll('.ch-st').filter(function (b) { return b.classList.contains('interactive-btn'); }).map(function (b) { return b.textContent; }).join(',')";
 
     [Fact]
     public void A_queued_dish_no_food_is_set_aside_for_shows_as_short()
