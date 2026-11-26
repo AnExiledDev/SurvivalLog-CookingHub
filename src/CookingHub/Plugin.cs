@@ -15,7 +15,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.9.6";
+    private const string Version = "0.9.7";
 
     /// <summary>Exiled's Toolkit: its shared helpers, toasts, live settings and UI size all come from it.</summary>
     private const string ToolkitGuid = "com.dev.survivallog.exiledtoolkit";

@@ -22,7 +22,7 @@ Cooking Hub does everything ProjectCook's dish preview does, so use one or the o
 
 ## Requirements
 
-- Survival Log 1.1.20719. Built for this version. A game update can break it until the mod is updated.
+- Survival Log 1.1.21671. Built for this version. A game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Optional: [Stacking](https://www.nexusmods.com/survivallog/mods/74). Cooking Hub loads food Stacking made stackable one unit at a time, the way Stacking wants it. Without Stacking, nothing changes.
 - Optional: [Machine Speed](https://www.nexusmods.com/survivallog/mods/83). When it makes cooking faster, the cook time Cooking Hub shows on the cooking screen is the faster time. Without Machine Speed, nothing changes.

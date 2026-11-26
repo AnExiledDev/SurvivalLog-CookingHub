@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.7
+
+- Fixed: closing the cooking screen while typing in its search box could leave the game's keys blocked.
+- Made for Survival Log 1.1.21671.
+
 ## 0.9.6
 
 - Clearer wording in the settings, the messages and the notes on the cooking screen.

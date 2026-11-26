@@ -134,6 +134,9 @@ internal sealed class CookSession
 
         _wasCookingScreenOpen = isOpen;
 
+        // A closed screen takes its search box with it, and may not say that typing ended.
+        if (!isOpen) _keyboard.Release();
+
         return true;
     }
 
@@ -258,6 +261,8 @@ internal sealed class CookSession
         {
             case PageCommand.Ready:
                 _log("page script ready");
+                // A new page has no search box with the keyboard yet.
+                _keyboard.Release();
                 _page.ForgetWords();
                 _sentCatalog = null;
                 ForgetSent();

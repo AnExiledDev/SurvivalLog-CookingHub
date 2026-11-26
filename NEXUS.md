@@ -29,7 +29,7 @@ Works in English and Chinese.
 
 [size=5]Requirements[/size]
 [list]
-[*]Survival Log 1.1.20719. A game update can break it until the mod is updated.[/*]
+[*]Survival Log 1.1.21671. A game update can break it until the mod is updated.[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]. Install it first.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]. Cooking Hub loads food Stacking made stackable one unit at a time, the way Stacking wants it. Without Stacking, nothing changes.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/83]Machine Speed[/url]. When it makes cooking faster, the cook time Cooking Hub shows on the cooking screen is the faster time. Without Machine Speed, nothing changes.[/*]
@@ -84,7 +84,7 @@ Cooking Hub 包含 ProjectCook 菜品预览的功能，两者请只装一个。�
 
 [size=5]前置要求[/size]
 [list]
-[*]Survival Log 1.1.20719。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
+[*]Survival Log 1.1.21671。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]，请先安装。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]。Cooking Hub 会按 Stacking 的规则，把它变成可堆叠的食材一份一份放入锅中。未安装 Stacking 时不受影响。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/83]Machine Speed[/url]。它加快烹饪时，Cooking Hub 在烹饪界面上显示的烹饪时间就是加快后的时间。未安装 Machine Speed 时不受影响。[/*]
