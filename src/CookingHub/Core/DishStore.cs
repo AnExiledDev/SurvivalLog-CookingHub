@@ -131,6 +131,9 @@ public sealed class DishRetry
 
     public bool IsDue(ReadyDish dish, double now) => !_nextTryAt.TryGetValue(dish.InstanceId, out var at) || now >= at;
 
+    /// <summary>When the first dish that stayed is due another try; null when none stayed.</summary>
+    public double? NextTryAt => _nextTryAt.Count == 0 ? null : _nextTryAt.Values.Min();
+
     public void Saw(Stored stored, double now)
     {
         if (stored is Stored.Stays) _nextTryAt[stored.Dish.InstanceId] = now + WaitSeconds;

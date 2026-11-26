@@ -15,7 +15,7 @@ namespace CookingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.cookinghub";
-    private const string Version = "0.9.7";
+    private const string Version = "0.9.8";
 
     /// <summary>Exiled's Toolkit: its shared helpers, toasts, live settings and UI size all come from it.</summary>
     private const string ToolkitGuid = "com.dev.survivallog.exiledtoolkit";
@@ -65,6 +65,7 @@ public sealed class Plugin : BasePlugin
 
         log.Write($"===== Cooking Hub {Version} started");
         BagRefresh.Apply(hooks, game.IsCookingScreenOpen, log.Write);
+        DishSignals.Apply(hooks);
 
         LiveSettings.Watch(() =>
         {

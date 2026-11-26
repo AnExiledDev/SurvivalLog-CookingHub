@@ -16,7 +16,6 @@ internal sealed class CookSession
 {
     private const float ClosedRefreshSeconds = 5f;
     private const float StartWindowSeconds = 4f;
-    private const float DishSweepSeconds = 2f;
     private const float QueueSeconds = 1f;
 
     private readonly ICookGame _game;
@@ -52,7 +51,7 @@ internal sealed class CookSession
     private float _nextQueueAt;
     private HashSet<long> _idleBefore = new();
     private readonly Dictionary<long, string> _toldWaiting = new();
-    private float _nextDishSweepAt;
+    private readonly DishSweep _dishSweep = new();
     private readonly HashSet<long> _toldStays = new();
     private readonly DishRetry _dishRetry = new();
 
@@ -75,6 +74,9 @@ internal sealed class CookSession
         _isSpoilingFirst = isSpoilingFirst;
         _isShowingOdds = isShowingOdds;
         _isShowingUnlearned = isShowingUnlearned;
+
+        if (isPuttingDishesAway && !_isPuttingDishesAway) _dishSweep.Ask();
+
         _isPuttingDishesAway = isPuttingDishesAway;
         ForgetSent();
     }
@@ -92,7 +94,7 @@ internal sealed class CookSession
 
         _watch.AdvanceCatalog();
 
-        if (_isPuttingDishesAway && now >= _nextDishSweepAt) PutDishesAway(now);
+        if (_isPuttingDishesAway && IsDishSweepDue(now)) PutDishesAway(now);
         if (!_queue.IsEmpty && now >= _nextQueueAt) CookQueued(now);
 
         if (HasCookingScreenFlipped())
@@ -140,14 +142,23 @@ internal sealed class CookSession
         return true;
     }
 
+    /// <summary>A cook finished, play started, or a dish that stayed is due another try.</summary>
+    private bool IsDishSweepDue(float now)
+    {
+        if (DishSignals.TakeCooked()) _dishSweep.Ask();
+        if (DishSignals.TakeStarted()) _dishSweep.PlayStarted(now);
+
+        return _dishSweep.IsDue(now, _dishRetry.NextTryAt, DishSignals.IsWatching);
+    }
+
     /// <summary>
-    /// Every few seconds, moves each finished dish out of its stove into the storage its tags want. Where each went is
-    /// shown as a toast when Exiled's Toolkit can show one, else on the page; a dish no storage takes is retried after a
-    /// wait but told about only once. The moves share one refresh of an open cooking screen.
+    /// Moves each finished dish out of its stove into the storage its tags want. Where each went is shown as a toast when
+    /// Exiled's Toolkit can show one, else on the page; a dish no storage takes is retried after a wait but told about
+    /// only once. The moves share one refresh of an open cooking screen.
     /// </summary>
     private void PutDishesAway(float now)
     {
-        _nextDishSweepAt = now + DishSweepSeconds;
+        _dishSweep.Ran(now);
 
         IReadOnlyList<Stored> results;
 

@@ -144,6 +144,29 @@ public class DishStoreTests
     }
 
     [Fact]
+    public void The_next_try_is_the_earliest_wait_of_the_dishes_that_stayed()
+    {
+        var game = new FakeDishes();
+        var retry = new DishRetry();
+        var stew = new ReadyDish(9002, 2, "Stew", Stove);
+
+        Assert.Null(retry.NextTryAt);
+
+        game.Shelves.Add(Tagged(Fridge, level: 0, specificity: 1));
+        game.Full.Add(Fridge);
+        DishStore.PutAway(game, retry, now: 100);
+        game.Waiting.Add(stew);
+        DishStore.PutAway(game, retry, now: 105);
+
+        Assert.Equal(100 + DishRetry.WaitSeconds, retry.NextTryAt);
+
+        game.Full.Clear();
+        DishStore.PutAway(game, retry, now: 100 + DishRetry.WaitSeconds);
+
+        Assert.Equal(105 + DishRetry.WaitSeconds, retry.NextTryAt);
+    }
+
+    [Fact]
     public void Another_dish_is_tried_while_the_one_that_stayed_waits()
     {
         var game = new FakeDishes();

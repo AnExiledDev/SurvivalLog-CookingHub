@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.8
+
+- With `PutDishesAway` on, Cooking Hub looks for finished dishes only when a cook finishes, a save loads, or a trip starts or ends, instead of every 2 seconds.
+- Made for Survival Log 1.1.21671.
+
 ## 0.9.7
 
 - Fixed: closing the cooking screen while typing in its search box could leave the game's keys blocked.
